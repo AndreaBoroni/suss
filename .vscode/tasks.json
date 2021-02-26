@@ -1,0 +1,25 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "shell",
+            "label": "g++.exe build active file",
+            "command": "g++.exe",
+            "args": [
+                "-g",
+                "${file}",
+                "-o",
+                "${fileBasenameNoExtension}.exe",
+                "windows_handling.h",
+                "parser.h",
+                "-lgdi32",
+                "-w"
+            ],
+            "problemMatcher": [ "$gcc" ],
+            "group": { 
+                "kind": "build",
+                "isDefault": true,
+            }
+        }
+    ]
+}
