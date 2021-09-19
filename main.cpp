@@ -128,7 +128,7 @@ struct Node {
     int type;
     f64 value;
 
-    Function *fun_ptr;
+    Function *fun_pointer;
     Variable *var_ptr;
 
     Node *left;
@@ -167,7 +167,7 @@ void print_node(Node *node) {
     if (node->type == Node_Unary_Minus) printf(" - ");
 
     if (node->type == Node_Function_Call) {
-        for (int i = 0; i < node->fun_ptr->name.count; i++) printf("%c", node->fun_ptr->name.data[i]);
+        for (int i = 0; i < node->fun_pointer->name.count; i++) printf("%c", node->fun_pointer->name.data[i]);
     }
     if (node->type == Node_Variable) {
         for (int i = 0; i < node->var_ptr->name.count; i++) printf("%c", node->var_ptr->name.data[i]);
@@ -278,7 +278,7 @@ struct Node_Bucket_Array {
     Node *make_function_call(Function *pointer) {
         Node *result = get_node_mem();
         result->type = Node_Function_Call;
-        result->fun_ptr = pointer;
+        result->fun_pointer = pointer;
         return result;
     }
 };
@@ -291,13 +291,13 @@ struct Function_Bucket_Array {
     // Function_Bucket_Array *next = NULL;
     // int bucket_index = 0;
 
-    Function *add(String name, void *fun_ptr, int number_of_arguments) {
+    Function *add(String name, void *fun_pointer, int number_of_arguments) {
         Function *result = &functions[length];
         length++;
         Assert(length <= Function_Bucket_Length);
 
         result->name                = name;
-        result->pointer             = fun_ptr;
+        result->pointer             = fun_pointer;
         result->number_of_arguments = number_of_arguments;
 
         return result;
@@ -512,6 +512,9 @@ Node *parse_expression(Tokenizer *tokenizer, int flags) {
     return tree;
 }
 
+typedef f64 one_argument_function(f64);
+typedef f64 two_argument_function(f64, f64);
+
 f64 eval_tree(Node *node) {
     Assert(node);
 
@@ -562,15 +565,15 @@ f64 eval_tree(Node *node) {
     }
 
     if (node->type == Node_Function_Call) {
-        auto fun = node->fun_ptr;
-        if (!fun) report_error("Function node created incorrectly");
+        auto node_function = node->fun_pointer;
+        if (!node_function) report_error("Function node created incorrectly");
         
-        if (fun->number_of_arguments == 1) {
-            f64 (*fun)(f64) = (f64 (*)(f64)) node->fun_ptr->pointer;
+        if (node_function->number_of_arguments == 1) {
+            one_argument_function *fun = (one_argument_function *) node_function->pointer;
             return fun(eval_tree(node->left));
         }
-        else if (fun->number_of_arguments == 2) {
-            f64 (*fun)(f64, f64) = (f64 (*)(f64, f64)) node->fun_ptr->pointer;
+        else if (node_function->number_of_arguments == 2) {
+            two_argument_function *fun = (two_argument_function *) node_function->pointer;
             f64 argument_1 = eval_tree(node->left);
             f64 argument_2 = eval_tree(node->right);
 
@@ -710,7 +713,7 @@ int isolate_unknown(Node *tree) {
         if (where == On_Left_Node) return Unknown_Found;
       
         if (tree->left->type == Node_Function_Call) {
-            auto fun = tree->left->fun_ptr;
+            auto fun = tree->left->fun_pointer;
             if (!fun) report_error("Function node created incorrectly");
             auto simple_inverse_fun = maybe_inverse_function(fun);
             
@@ -721,18 +724,18 @@ int isolate_unknown(Node *tree) {
             tree->right = tree->left;
 
             if (simple_inverse_fun) {
-                tree->right->fun_ptr = simple_inverse_fun;
-                tree->right->left    = right_side;
+                tree->right->fun_pointer = simple_inverse_fun;
+                tree->right->left        = right_side;
 
             } else if (fun == functions.find("sqrt")) {
-                tree->right->fun_ptr = functions.find("pow");
-                tree->right->left    = right_side;
-                tree->right->right   = nodes.make_number(2);
+                tree->right->fun_pointer = functions.find("pow");
+                tree->right->left        = right_side;
+                tree->right->right       = nodes.make_number(2);
 
             } else if (fun == functions.find("ln")) {
-                tree->right->fun_ptr = functions.find("pow");
-                tree->right->left    = nodes.make_variable(variables.find("e"));
-                tree->right->right   = right_side;
+                tree->right->fun_pointer = functions.find("pow");
+                tree->right->left        = nodes.make_variable(variables.find("e"));
+                tree->right->right       = right_side;
 
             } else if (fun == functions.find("cot")) {
                 auto divide_node   = nodes.make(Node_Divide);
@@ -743,8 +746,8 @@ int isolate_unknown(Node *tree) {
                 minus_node->left  = divide_node;
                 minus_node->right = tree->right;
 
-                tree->right->fun_ptr = functions.find("atan");
-                tree->right->left    = right_side;
+                tree->right->fun_pointer = functions.find("atan");
+                tree->right->left        = right_side;
 
                 tree->right = minus_node;
                 
@@ -754,29 +757,29 @@ int isolate_unknown(Node *tree) {
                     division_node->left  = nodes.make_number(1);
                     division_node->right = argument;
 
-                    tree->right->fun_ptr = functions.find("pow");
-                    tree->right->left    = right_side;
-                    tree->right->right   = division_node;
+                    tree->right->fun_pointer = functions.find("pow");
+                    tree->right->left        = right_side;
+                    tree->right->right       = division_node;
 
                 } else {
-                    tree->right->fun_ptr = functions.find("log");
-                    tree->right->left    = right_side;
-                    tree->right->right   = argument;
+                    tree->right->fun_pointer = functions.find("log");
+                    tree->right->left        = right_side;
+                    tree->right->right       = argument;
                 }
             } else if (fun == functions.find("log")) {
                 if (where == On_Left_Left_Node) {
-                    tree->right->fun_ptr = functions.find("pow");
-                    tree->right->left    = argument;
-                    tree->right->right   = right_side;
+                    tree->right->fun_pointer = functions.find("pow");
+                    tree->right->left        = argument;
+                    tree->right->right       = right_side;
 
                 } else {
                     auto division_node   = nodes.make(Node_Divide);
                     division_node->left  = nodes.make_number(1);
                     division_node->right = right_side;
 
-                    tree->right->fun_ptr = functions.find("pow");
-                    tree->right->left    = argument;
-                    tree->right->right   = division_node;
+                    tree->right->fun_pointer = functions.find("pow");
+                    tree->right->left        = argument;
+                    tree->right->right       = division_node;
 
                 }
             } else report_error("This function cannot be inverted");
@@ -851,7 +854,7 @@ void print_tree_horizontally(Node *node, int space)
 
     print_tree_horizontally(node->left, space + print_spaceing);
 
-} 
+}
 
 int depth(Node *tree) {
 
