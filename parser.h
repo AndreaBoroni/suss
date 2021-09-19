@@ -95,12 +95,6 @@ bool double_return_sequence(char c0, char c1) {
     return false;
 }
 
-void eat_spaces(Tokenizer *tokenizer) {
-    while (is_space(tokenizer->at[0])) {
-        advance_chars(tokenizer, 1);
-    }
-}
-
 enum Identifier_Type {
     Ident_Unknown,
 
@@ -400,6 +394,13 @@ Token peek_token(Tokenizer *tokenizer) {
     return token;
 }
 
+Token peek_raw_token(Tokenizer *tokenizer) {
+    Tokenizer tokenizer_copy = *tokenizer;
+
+    Token token = get_raw_token(&tokenizer_copy);
+    return token;
+}
+
 #define keyword_length 14
 char *cpp_keywords[keyword_length] = {"for", "while", "if", "else", "switch", "case", "return", "break", "continue", "do", "inline", "typedef", "using", "namespace"};
 
@@ -428,44 +429,30 @@ bool is_keyword(Token token) {
     return false;
 }
 
-Token parse_token(Tokenizer *tokenizer, bool previous_token_was_type = false) {
-    Token token = get_raw_token(tokenizer);
-
-    if (token.type == Token_Identifier && token.ident_type == Ident_Unknown) {
-        token.ident_type = Ident_Unknown;
-
-        if (is_keyword(token)) {
-            token.ident_type = Ident_Keyword;
-        } else {
-            Token next_token = peek_token(tokenizer);
-            switch (next_token.type) {
-                case Token_Asterisk:
-                case Token_Identifier: token.ident_type = Ident_Type; break;
-                case Token_Open_Parenthesis: {
-                    Tokenizer tokenizer_copy = *tokenizer;
-                    Token temp_token;
-                    do {
-                        temp_token = get_raw_token(&tokenizer_copy);
-                    } while (temp_token.type != Token_Close_Parenthesis);
-                    temp_token = peek_token(&tokenizer_copy);
-
-                    if (temp_token.type == Token_Semicolon) {
-                        if (previous_token_was_type) token.ident_type = Ident_Function_Declaration;
-                        else                         token.ident_type = Ident_Function_Call;
-                    } else if (temp_token.type == Token_Open_Braces) token.ident_type = Ident_Function_Definition;
-                } break;
-                default: {
-                    if (previous_token_was_type) token.ident_type = Ident_Variable_Declaration;
-                    else                         token.ident_type = Ident_Variable;
-                }
-            }
-
-        }
-    }
-
-    return token;
+void eat_spaces_new_lines_and_comments(Tokenizer *tokenizer) {
+	
+	while (true) {
+		Token token = peek_raw_token(tokenizer);
+		switch (token.type) {
+			case Token_Spaces:
+			case Token_Comment:
+			case Token_End_Of_Line: {
+				get_raw_token(tokenizer);
+				continue;
+			}
+		}
+		break;
+	}
 }
 
-
+bool peek_token_type(Tokenizer *tokenizer, Token *token, int token_type, bool get_token_if_match = true) {
+	*token = peek_token(tokenizer);
+	if (token->type == token_type) {
+		if (get_token_if_match) get_token(tokenizer);
+		return true;
+	}
+	
+	return false;
+}
 
 #endif

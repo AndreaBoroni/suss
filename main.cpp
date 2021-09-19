@@ -58,7 +58,6 @@ struct Variable {
     f64    value;
 
     bool initialized;
-    bool constant;
 };
 
 enum Node_Types {
@@ -178,7 +177,6 @@ void print_node(Node *node) {
     }
 }
 
-// Todo: print a better tree (graphically?)
 void print_tree(Node *tree, int level, char where) {
 
     printf("[%d %c] ", level, where);
@@ -314,7 +312,13 @@ struct Function_Bucket_Array {
         }
         return NULL;
     }
-    Function *find(char *name) { return find(_s(name)); }
+    Function *find(char *name) {
+		return find(_s(name));
+	}
+
+	void reset() {
+		length = 0;
+	}
 };
 
 #define Variable_Bucket_Length 128
@@ -325,7 +329,7 @@ struct Variable_Bucket_Array {
     // Variable_Bucket_Array *next = NULL;
     // int bucket_index = 0;
 
-    Variable *add_constant(String name, f64 value) {
+    Variable *add(String name, f64 value) {
         Variable *result = &variables[length];
         length++;
         Assert(length <= Variable_Bucket_Length);
@@ -333,7 +337,6 @@ struct Variable_Bucket_Array {
         result->name        = name;
         result->value       = value;
         result->initialized = true;
-        result->constant    = true;
 
         return result;
     }
@@ -346,7 +349,6 @@ struct Variable_Bucket_Array {
         result->name        = name;
         result->value       = 0;
         result->initialized = false;
-        result->constant    = false;
 
         return result;
     }
@@ -362,7 +364,13 @@ struct Variable_Bucket_Array {
         }
         return NULL;
     }
-    Variable *find(char *name) { return find(_s(name)); }
+    Variable *find(char *name) {
+		return find(_s(name));
+	}
+
+	void reset() {
+		length = 0;
+	}
 };
 
 Function_Bucket_Array functions;
@@ -401,8 +409,8 @@ void initialize_functions_and_constants() {
     functions.add(_s("log"),  (void *) &log_,  2);
     functions.add(_s("pow"),  (void *) &pow_,  2);
 
-    variables.add_constant(_s("pi"), 3.14159265359);
-    variables.add_constant(_s("e"),  2.71828182845);
+    variables.add(_s("pi"), 3.14159265359);
+    variables.add(_s("e"),  2.71828182845);
 }
 
 Node *parse_subexpression(Tokenizer *tokenizer) {
@@ -542,8 +550,8 @@ f64 eval_tree(Node *node) {
 
     if (node->type == Node_Equals) {
         Variable *var = node->left->var_ptr;
-        if (!var)          report_error("Left side is not a variable");
-        if (var->constant) report_error("Trying to assign a value to a constant variable");
+        if (!var)             report_error("Left side is not a variable");
+        if (var->initialized) report_error("Trying to assign a value to an initialized variable");
 
         var->value = eval_tree(node->right);
         var->initialized = true;
@@ -662,8 +670,10 @@ int find_unknown(Node *tree, int first_level = -1, int second_level = -1) {
         result_right = find_unknown(tree->right, next_first_level, next_second_level);
     }
     
-    if (result_right == Found_Unknown_More_Than_Once || result_left == Found_Unknown_More_Than_Once) return Found_Unknown_More_Than_Once;
-    if (result_right == Found_More_Than_One_Unknown  || result_left == Found_More_Than_One_Unknown)  return Found_More_Than_One_Unknown;
+    if (result_right == Found_Unknown_More_Than_Once) return Found_Unknown_More_Than_Once;
+	if (result_left  == Found_Unknown_More_Than_Once) return Found_Unknown_More_Than_Once;
+	if (result_right == Found_More_Than_One_Unknown)  return Found_More_Than_One_Unknown;
+	if (result_left  == Found_More_Than_One_Unknown)  return Found_More_Than_One_Unknown;
 
     if (result_left == -1 && result_right == -1) return Unknown_Not_Found;
     if (result_left  >= On_Right_Node)           return result_left; // Hack
@@ -932,14 +942,13 @@ bit_array get_bit_array(int length) {
     bit_array result;
     result.bytes_allocated = length / 8 + 1;
 
-    result.mem = (u8 *) malloc(result.bytes_allocated);
-    memset(result.mem, 0, result.bytes_allocated);
+    result.mem = (u8 *) calloc(result.bytes_allocated, 1);
     result.length = length;
 
     return result;
 }
 
-int main(void) {
+int NOTmain(void) {
     
     initialize_functions_and_constants();
 
@@ -988,11 +997,8 @@ int main(void) {
         if (at == last_line_computed) report_error("Possible circular dependency, could not solve the equasions :(");
     }
 
-    for (int i = 0; i < variables.length; i++) {
-        if (variables[i].constant) continue;
-        
+    for (int i = 0; i < variables.length; i++) {        
         for (int c = 0; c < variables[i].name.count; c++) printf("%c", variables[i].name.data[c]);
         printf(" = %.3f\n", variables[i].value);
     }
 }
-
