@@ -694,7 +694,9 @@ Function *maybe_inverse_function(Function *fun) {
 }
 
 int isolate_unknown(Node *tree) {
-    if (tree->type != Node_Equals) report_error("Top node must be operator =");
+    if (tree->type != Node_Equals) {
+        report_error("Top node must be operator =");
+    }
     
     while (true) {
         if (!tree->left || !tree->right) report_error("Error while isolating unknown");

@@ -1,5 +1,4 @@
-#ifndef __PARSER__
-#define __PARSER__
+#pragma(once)
 
 typedef unsigned int uint32;
 
@@ -445,14 +444,35 @@ void eat_spaces_new_lines_and_comments(Tokenizer *tokenizer) {
 	}
 }
 
-bool peek_token_type(Tokenizer *tokenizer, Token *token, int token_type, bool get_token_if_match = true) {
+bool peek_token_type(Tokenizer *tokenizer, Token *token, int token_type, bool eat_token_if_match = true) {
 	*token = peek_token(tokenizer);
 	if (token->type == token_type) {
-		if (get_token_if_match) get_token(tokenizer);
+		if (eat_token_if_match) get_token(tokenizer);
 		return true;
 	}
 	
 	return false;
 }
 
-#endif
+bool maybe_parse_number(Tokenizer *tokenizer, Token *token) {
+
+	Tokenizer t = *tokenizer;
+	*token = get_token(&t);
+
+	bool negative_number = false;
+	if (token->type == Token_Minus) {
+		negative_number = true;
+		*token = get_token(&t);
+	}
+
+	if (token->type != Token_Number) return false;
+	
+	if (negative_number) {
+		token->f = -token->f;
+		token->s = -token->s;
+		get_token(tokenizer);
+	}
+	get_token(tokenizer);
+
+	return true;
+}

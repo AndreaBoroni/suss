@@ -3,6 +3,8 @@
 #import "parser.h"
 #import "main.cpp"
 
+#define epsilon 0.00001
+
 struct Result {
 	String name;
 	f64    value;
@@ -30,26 +32,28 @@ void reset_functions_and_variables() {
 	variables.reset();
 }
 
+int count_pounds(Tokenizer *tokenizer) {
+	Tokenizer t = *tokenizer;
+
+	int result = 0;
+	while (true) {
+		Token token = get_token(&t);
+		if (token.type == Token_Pound) result++;
+		if (token.type == Token_End_Of_File) break;
+	}
+
+	return result;
+}
+
 Result_Array parse_expected_results(Tokenizer *tokenizer) {
 
 	Result_Array results = {0};
 
-	Token token = peek_token(tokenizer);
-	if (token.type == Token_Pound) {
-		get_token(tokenizer);
+	int number_of_unknowns = count_pounds(tokenizer);
+	if (number_of_unknowns == 0) return results;
+	results = get_result_array(number_of_unknowns);
 
-		token = peek_token(tokenizer);
-		if (token.type == Token_Number && token.s > 0) {
-			get_token(tokenizer);
-			results = get_result_array(token.s);
-		} else {
-			return results;
-		}
-	} else {
-		return results;
-	}
-	eat_spaces_new_lines_and_comments(tokenizer);
-
+	Token token;
 	int results_parsed = 0;
 	while (true) {
 
@@ -66,7 +70,7 @@ Result_Array parse_expected_results(Tokenizer *tokenizer) {
 			break;
 		}
 		
-		if (peek_token_type(tokenizer, &token, Token_Number)) {
+		if (maybe_parse_number(tokenizer, &token)) {
 			results[results_parsed]->value = token.f;
 		} else {
 			break;
@@ -109,20 +113,16 @@ bool test_program(char *file_name) {
 		Node *line = lines[at];
 		int result = isolate_unknown(line);
 		
-		if (line_computed[at]) goto loop_end;
-		
-		if (result == Root_Node_Is_Not_Equals)      line_computed.set_bit(at);
-		if (result == Unknown_Not_Found)            line_computed.set_bit(at);
-		if (result == Found_More_Than_One_Unknown)  goto loop_end;
-		if (result == Found_Unknown_More_Than_Once) goto loop_end;
-		
-		if (result == Unknown_Found) {
-			f64 eval_result = eval_tree(line);
-			line_computed.set_bit(at);
-			last_line_computed = at;
+		if (!line_computed[at]) {
+			if (result == Root_Node_Is_Not_Equals) line_computed.set_bit(at);
+			if (result == Unknown_Not_Found)       line_computed.set_bit(at);
+			if (result == Unknown_Found) {
+				f64 eval_result = eval_tree(line);
+				line_computed.set_bit(at);
+				last_line_computed = at;
+			}
 		}
 		
-	loop_end:
 		int total_lines_computed = 0;
 		for (int i = 0; i < number_of_lines; i++) total_lines_computed += line_computed[i];
 		if (total_lines_computed == number_of_lines) break;
@@ -135,7 +135,8 @@ bool test_program(char *file_name) {
 		for (int i = 0; i < variables.length; i++) {
 			if (!are_strings_equal(expected_results[r]->name, variables[i].name)) continue;
 			if (!variables[i].initialized) return false;
-			if (expected_results[r]->value != variables[i].value) return false;			
+			if (abs(expected_results[r]->value - variables[i].value) < epsilon) {
+			}
 		}
 	}
 
@@ -143,6 +144,30 @@ bool test_program(char *file_name) {
 }
 
 int main(void) {
-	if (test_program("tests/sum.txt")) printf("Success\n");
-	else printf("Failed\n");
+
+	WIN32_FIND_DATA find_file_data;
+	char *tests_folder_path = "tests/*";
+	HANDLE handle = FindFirstFile(tests_folder_path, &find_file_data);
+	
+	do {
+		if (!(find_file_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+
+			char *file_name = find_file_data.cFileName;
+			int name_length   = strlen(file_name);
+			int folder_length = strlen(tests_folder_path);
+
+			char *full_file_name = (char *) malloc(folder_length + name_length);
+			memcpy(full_file_name, tests_folder_path, folder_length);
+			memcpy(full_file_name + folder_length - 1, file_name, name_length);
+			full_file_name[folder_length + name_length - 1] = '\0';
+			printf("Testing: %s    --->    ", full_file_name);
+
+			if (test_program(full_file_name)) printf("Success\n");
+			else printf("Failed\n");
+			
+			free(full_file_name);
+		}
+	} while (FindNextFile(handle, &find_file_data) != 0);
+	
+	FindClose(handle);
 }
