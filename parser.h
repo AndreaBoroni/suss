@@ -12,7 +12,6 @@ struct Token {
     int from_end;
 
     int type;
-    int ident_type;
     String text;
 
     float f;
@@ -31,12 +30,10 @@ void refill(Tokenizer *tokenizer) {
     if (tokenizer->input.count == 0) {
         tokenizer->at[0] = 0;
         tokenizer->at[1] = 0;
-    }
-    else if (tokenizer->input.count == 1) {
+    } else if (tokenizer->input.count == 1) {
         tokenizer->at[0] = tokenizer->input.data[0];
         tokenizer->at[1] = 0;
-    }
-    else {
+    } else {
         tokenizer->at[0] = tokenizer->input.data[0];
         tokenizer->at[1] = tokenizer->input.data[1];
     }
@@ -77,7 +74,7 @@ bool is_space(char c) {
 }
 
 bool is_numeric(char c) {
-    if (c >= '0' && c <='9') return true;
+    if (c >= '0' && c <= '9') return true;
     return false;
 }
 
@@ -93,25 +90,6 @@ bool double_return_sequence(char c0, char c1) {
     if (c0 == '\n' && c1 == '\r') return true;
     return false;
 }
-
-enum Identifier_Type {
-    Ident_Unknown,
-
-    Ident_Type,
-
-    Ident_Constant,
-    
-    Ident_Variable,
-    Ident_Variable_Declaration,
-    
-    Ident_Function_Call,
-    Ident_Function_Definition,
-    Ident_Function_Declaration,
-    
-    Ident_Keyword,
-
-    Ident_Types_Count,
-};
 
 enum Token_Types {
     Token_Unknown,
@@ -231,8 +209,8 @@ Token get_raw_token(Tokenizer *tokenizer) {
                 advance_chars(tokenizer, 1);
             } else token.type = Token_Not;
         } break;
-        case '&': token.type = Token_And;               break;
-        case '|': token.type = Token_Or;                break;
+        case '&': token.type = Token_And; break;
+        case '|': token.type = Token_Or;  break;
         case '=': {
             if (tokenizer->at[0] == '=') {
                 token.type = Token_Equals_Equals;
@@ -315,7 +293,6 @@ Token get_raw_token(Tokenizer *tokenizer) {
         default: {
             if (is_alpha(c)) {
                 token.type = Token_Identifier;
-                token.ident_type = Ident_Unknown;
                 
                 while (tokenizer->at[0] && (is_alpha(tokenizer->at[0]) || is_numeric(tokenizer->at[0]))) {
                     advance_chars(tokenizer, 1);
@@ -400,32 +377,11 @@ Token peek_raw_token(Tokenizer *tokenizer) {
     return token;
 }
 
-#define keyword_length 14
-char *cpp_keywords[keyword_length] = {"for", "while", "if", "else", "switch", "case", "return", "break", "continue", "do", "inline", "typedef", "using", "namespace"};
-
 int string_length(char *s) {
     int len = 0;
     while (s[len] != '\0') len++;
 
     return len;
-}
-
-bool are_equals(char *s0, char *s1, int length) {
-    for (int i = 0; i < length; i++) {
-        if (s0[i] != s1[i]) return false;
-    }
-    return true;
-}
-
-bool is_keyword(Token token) {
-
-    for (int i = 0; i < keyword_length; i++) {
-        if (token.text.count != string_length(cpp_keywords[i]))              continue;
-        if (!are_equals(token.text.data, cpp_keywords[i], token.text.count)) continue;
-        return true;
-    }
-
-    return false;
 }
 
 void eat_spaces_new_lines_and_comments(Tokenizer *tokenizer) {
