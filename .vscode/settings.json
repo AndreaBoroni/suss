@@ -1,76 +1,25 @@
 {
-    "files.associations": {
-        "string": "cpp",
-        "xstring": "cpp",
-        "cmath": "cpp",
-        "cstddef": "cpp",
-        "cstdint": "cpp",
-        "cstdio": "cpp",
-        "cstdlib": "cpp",
-        "cstring": "cpp",
-        "cwchar": "cpp",
-        "exception": "cpp",
-        "initializer_list": "cpp",
-        "ios": "cpp",
-        "iosfwd": "cpp",
-        "iostream": "cpp",
-        "istream": "cpp",
-        "limits": "cpp",
-        "memory": "cpp",
-        "new": "cpp",
-        "ostream": "cpp",
-        "stdexcept": "cpp",
-        "streambuf": "cpp",
-        "system_error": "cpp",
-        "tuple": "cpp",
-        "type_traits": "cpp",
-        "typeinfo": "cpp",
-        "utility": "cpp",
-        "vector": "cpp",
-        "xfacet": "cpp",
-        "xiosbase": "cpp",
-        "xlocale": "cpp",
-        "xlocinfo": "cpp",
-        "xlocnum": "cpp",
-        "xmemory": "cpp",
-        "xmemory0": "cpp",
-        "xstddef": "cpp",
-        "xtr1common": "cpp",
-        "xutility": "cpp",
-        "fstream": "cpp"
-    },
-
-    // OPTIONAL WORD WRAPPING
-    // Controls if lines should wrap. The lines will wrap at min(editor.wrappingColumn, viewportWidthInColumns).
-    "editor.wordWrap": "off",
-    
-    // Controls the indentation of wrapped lines. Can be one of 'none', 'same' or 'indent'.
+    "editor.wordWrap"      : "on",
     "editor.wrappingIndent": "none",
 
-    // TURN OFF AUTOCOMPLETION
-    // Controls if quick suggestions should show up or not while typing
-    "editor.quickSuggestions": false,
-
-    // Enables parameter hints
-    "editor.parameterHints": false,
-
-    // Controls if the editor should automatically close brackets after opening them
-    "editor.autoClosingBrackets": false,
-
-    // Controls if the editor should automatically format the line after typing
+    "editor.autoClosingBrackets": "never",
     "editor.formatOnType": false,
-
-    // Controls if suggestions should automatically show up when typing trigger characters
+    "editor.quickSuggestions": {
+        "comments": "off",
+        "strings": "off",
+        "other": "off"
+    },
     "editor.suggestOnTriggerCharacters": false,
 
-    "breadcrumbs.enabled": false,
-    // "editor.glyphMargin": false,
-    "editor.folding": false,
+    "editor.acceptSuggestionOnEnter": "on",
 
-    // Controls if suggestions should be accepted 'Enter' - in addition to 'Tab'.
-    // Helps to avoid ambiguity between inserting new lines or accepting suggestions.
-    "editor.acceptSuggestionOnEnter": "off",
+    "breadcrumbs.enabled": false,
+    "editor.glyphMargin": true, // I need this on for breakpoints
+    "editor.folding": false,
     "editor.lineNumbers": "off",
+    
+    "C_Cpp.errorSquiggles": "Disabled",
+
     "workbench.colorCustomizations": {
         "editor.background": "#042327"
     },
@@ -78,6 +27,25 @@
         "comments": "#31B72C",
         "keywords": "#FFFFFF",
         "textMateRules": [
+            {
+                "name": "Primitive_Types",
+                "scope": [
+                    "storage.type.primitive.cpp",
+                    "storage.type.built-in.primitive.cpp",
+                ],
+                "settings": {
+                    "foreground": "#FFFFFF"
+                }
+            },
+            {
+                "name": "User_Types",
+                "scope": [
+                    "entity.name.type",
+                ],
+                "settings": {
+                    "foreground": "#9DE3C0"
+                }
+            },
             {
                 "name": "Keywords",
                 "scope": [
@@ -95,7 +63,7 @@
                     "storage.modifier.pointer.cpp"
                 ],
                 "settings": {
-                    "foreground": "#d6dddf"
+                    "foreground": "#FFFFFF"
                 }
             },
             {
@@ -110,28 +78,12 @@
                 }
             },
             {
-                "name": "Placeholder",
-                "scope": [
-                    "constant.other.placeholder.cpp"
-                ],
-                "settings": {
-                    "foreground": "#2cc198"
-                }
-            },
-            {
-                "name": "Escape_Char",
-                "scope": [
-                    "constant.character.escape",
-                ],
-                "settings": {
-                    "foreground": "#2cf198"
-                }
-            },
-            {
                 "name": "Standard",
                 "scope": [
                     "variable",
                     "function",
+                    "variable.other.property.cpp",
+                    "variable.other.global.cpp",
                     "entity.name.function",
                     "keyword.control.directive.include.cpp",
                     "keyword.control.directive.conditional.ifndef.cpp",
@@ -141,9 +93,37 @@
                     "variable.parameter.preprocessor.cpp",
                     "meta.parens.cpp",
                     "meta.block.cpp",
+                    "meta.body.function.definition.cpp",
                 ],
                 "settings": {
                     "foreground": "#b0bfc6"
+                }
+            },
+            {
+                "name": "Placeholder",
+                "scope": [
+                    "constant.other.placeholder"
+                ],
+                "settings": {
+                    "foreground": "#36d8aa"
+                }
+            },
+            {
+                "name": "Parameters",
+                "scope": [
+                    "variable.parameter.cpp"
+                ],
+                "settings": {
+                    "foreground": "#999999"
+                }
+            },
+            {
+                "name": "Escape_Char",
+                "scope": [
+                    "constant.character.escape",
+                ],
+                "settings": {
+                    "foreground": "#2cf198"
                 }
             },
             {
@@ -157,24 +137,73 @@
                     "foreground": "#70c5bf"
                 }
             },
-            // {
-            //     "name": "Primitive_Types",
-            //     "scope": [
-            //     ],
-            //     "settings": {
-            //         "foreground": "#569CD6"
-            //     }
-            // },
             {
-                "name": "User_Types",
+                "name": "Label",
                 "scope": [
-                    "storage.type.built-in.primitive.cpp",
-                    "entity.name.type"
+                    "entity.name.label.cpp"
                 ],
                 "settings": {
-                    "foreground": "#9DE3C0"
+                    "foreground": "#70c5bf"
+                }
+            },
+            {
+                "name": "Overloaded_Operator",
+                "scope": [
+                    "entity.name.function.operator.member",
+                ],
+                "settings": {
+                    "foreground": "#fcaa5d"
                 }
             },
         ]
+    },
+    
+    "files.associations": {
+        "*.txt": "cpp",
+        "xiosbase": "cpp",
+        "xstring": "cpp",
+        "cmath": "cpp",
+        "xlocale": "cpp",
+        "system_error": "cpp",
+        "cstdlib": "cpp",
+        "cstdio": "cpp",
+        "tuple": "cpp",
+        "general.h": "c",
+        "gl.h": "c",
+        "algorithm": "cpp",
+        "array": "cpp",
+        "chrono": "cpp",
+        "cstddef": "cpp",
+        "cstdint": "cpp",
+        "cstring": "cpp",
+        "cwchar": "cpp",
+        "exception": "cpp",
+        "initializer_list": "cpp",
+        "ios": "cpp",
+        "iosfwd": "cpp",
+        "iostream": "cpp",
+        "istream": "cpp",
+        "iterator": "cpp",
+        "limits": "cpp",
+        "memory": "cpp",
+        "new": "cpp",
+        "ostream": "cpp",
+        "random": "cpp",
+        "ratio": "cpp",
+        "stdexcept": "cpp",
+        "streambuf": "cpp",
+        "string": "cpp",
+        "type_traits": "cpp",
+        "typeinfo": "cpp",
+        "utility": "cpp",
+        "vector": "cpp",
+        "xfacet": "cpp",
+        "xlocinfo": "cpp",
+        "xlocnum": "cpp",
+        "xmemory": "cpp",
+        "xmemory0": "cpp",
+        "xstddef": "cpp",
+        "xtr1common": "cpp",
+        "xutility": "cpp"
     }
 }

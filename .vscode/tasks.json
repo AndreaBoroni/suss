@@ -7,9 +7,9 @@
             "command": "g++.exe",
             "args": [
                 "-g",
-                "${file}",
+                "main.cpp",
                 "-o",
-                "${fileBasenameNoExtension}.exe",
+                "main.exe",
                 "windows_handling.h",
                 "parser.h",
                 "-lgdi32",

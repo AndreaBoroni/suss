@@ -1,10 +1,6 @@
 #include "windows_handling.h"
 #include "parser.h"
 
-// Todo: separate int and float and bool
-// Todo: add clamp function
-// (Todo: if and loops)
-
 #define Assert(Expression) if (!(Expression)) {                                               \
                                printf("Asertion failed here:\n %s:%d\n", __FILE__, __LINE__); \
                                *(int *)0 = 0; }
@@ -70,19 +66,10 @@ enum Node_Types {
     Node_Multiply,
     Node_Divide,
     Node_Modulus,
-
     Node_Unary_Minus,
-
     Node_Equals,
-    Node_Plus_Equals,
-    Node_Minus_Equals,
-    Node_Times_Equals,
-    Node_Divide_Equals,
-    Node_Mod_Equals,
 
     Node_Parenthesized_Expression,
-
-    Node_Types_Count,
 };
 
 enum Expression_Flags {
@@ -90,18 +77,7 @@ enum Expression_Flags {
     Exp_Ends_In_Comma = 0x02,
 };
 
-bool is_special_equals(int type) {
-    if (type == Node_Plus_Equals)   return true;
-    if (type == Node_Minus_Equals)  return true;
-    if (type == Node_Times_Equals)  return true;
-    if (type == Node_Divide_Equals) return true;
-    if (type == Node_Mod_Equals)    return true;
-
-    return false;
-}
-
 int get_precedence(int type) {
-    if (is_special_equals(type)) return 0;
 
     switch(type) {
         case Node_Equals: return 0;
@@ -123,6 +99,16 @@ int get_precedence(int type) {
     return -1;
 }
 
+int token_to_binary_op(int token_type) {
+    if (token_type == Token_Plus)     return Node_Plus;
+    if (token_type == Token_Minus)    return Node_Minus;
+    if (token_type == Token_Asterisk) return Node_Multiply;
+    if (token_type == Token_Slash)    return Node_Divide;
+    if (token_type == Token_Percent)  return Node_Modulus;
+
+    return -1;
+}
+
 struct Node {
     int type;
     f64 value;
@@ -140,17 +126,6 @@ bool is_token_end_of_line(int type) {
     if (type == Token_End_Of_File) return true;
 
     return false;
-}
-
-void free_tree(Node *tree) {
-    if (tree->right) {
-        free_tree(tree->right);
-        free(tree->right);
-    }
-    if (tree->left) {
-        free_tree(tree->left);
-        free(tree->left);
-    }
 }
 
 void print_node(Node *node) {
@@ -187,7 +162,7 @@ void print_tree(Node *tree, int level, char where) {
     if (tree->right) print_tree(tree->right, level + 1, 'r');
 }
 
-void *rotate_tree(Node *node) {
+void rotate_tree(Node *node) {
     Node *bottom_node = node->right;
     
     Node *left_top     = node->left;
@@ -203,40 +178,6 @@ void *rotate_tree(Node *node) {
 
     bottom_node->left  = left_top;
     bottom_node->right = left_bottom;
-}
-
-bool adjust_precedence(Node *node) {
-    int type = node->type;
-    bool skip = (type == Node_Function_Call);
-    bool something_changed = false;
-
-    if (node->right && !skip) {
-        Node *bottom_node = node->right;
-        int top_node_precedence    = get_precedence(node->type);
-        int bottom_node_precedence = get_precedence(bottom_node->type);
-
-        if (top_node_precedence == bottom_node_precedence) {
-            rotate_tree(node);
-            adjust_precedence(node);
-            return true;
-        }
-    }
-
-    if (node->left)  something_changed |= adjust_precedence(node->left);
-    if (node->right) something_changed |= adjust_precedence(node->right);
-
-    if (node->right && !skip) {
-        Node *bottom_node = node->right;
-        int top_node_precedence    = get_precedence(node->type);
-        int bottom_node_precedence = get_precedence(bottom_node->type);
-
-        if (top_node_precedence > bottom_node_precedence) {
-            rotate_tree(node);
-            return true;
-        }
-    }
-
-    return something_changed;
 }
 
 Node *parse_expression(Tokenizer *tokenizer, int flags);
@@ -286,9 +227,6 @@ struct Function_Bucket_Array {
     Function functions[Function_Bucket_Length];
     int length = 0;
 
-    // Function_Bucket_Array *next = NULL;
-    // int bucket_index = 0;
-
     Function *add(String name, void *fun_pointer, int number_of_arguments) {
         Function *result = &functions[length];
         length++;
@@ -325,9 +263,6 @@ struct Function_Bucket_Array {
 struct Variable_Bucket_Array {
     Variable variables[Variable_Bucket_Length];
     int length = 0;
-
-    // Variable_Bucket_Array *next = NULL;
-    // int bucket_index = 0;
 
     Variable *add(String name, f64 value) {
         Variable *result = &variables[length];
@@ -438,7 +373,7 @@ Node *parse_subexpression(Tokenizer *tokenizer) {
                 Token peek_paren = get_token(tokenizer);
 
                 if (peek_paren.type != Token_Open_Parenthesis) {
-                    report_error("Expected '('", peek_paren.row, peek_paren.col);
+                    report_error("Expected '(' in function call", peek_paren.row, peek_paren.col);
                 }
 
                 node = nodes.make_function_call(fun);
@@ -450,13 +385,12 @@ Node *parse_subexpression(Tokenizer *tokenizer) {
                     node->left  = parse_expression(tokenizer, Exp_Ends_In_Comma);
                     node->right = parse_expression(tokenizer, Exp_Inside_Paren);
                 }
+            } else {
+                Variable *var = variables.find(token.text);
+                if (!var) var = variables.add(token.text);
 
-                break;
+                node = nodes.make_variable(var);
             }
-            
-            Variable *var = variables.find(token.text);
-            if (!var) var = variables.add(token.text);
-            node = nodes.make_variable(var);
         } break;
         default: report_error("Invalid token", token.row, token.col);
     }
@@ -465,59 +399,52 @@ Node *parse_subexpression(Tokenizer *tokenizer) {
 }
 
 Node *parse_expression(Tokenizer *tokenizer, int flags) {
-    Node *tree = NULL;
 
     Node *left = parse_subexpression(tokenizer);
+
+    Token peeked_token = peek_token(tokenizer);
+    if (peeked_token.type == Token_Equals) return left;
+
     Token next_token = get_token(tokenizer);
     
-    // Binary operators
-    if (next_token.type == Token_Plus)     tree = nodes.make(Node_Plus);
-    if (next_token.type == Token_Minus)    tree = nodes.make(Node_Minus);
-    if (next_token.type == Token_Asterisk) tree = nodes.make(Node_Multiply);
-    if (next_token.type == Token_Slash)    tree = nodes.make(Node_Divide);
-    if (next_token.type == Token_Percent)  tree = nodes.make(Node_Modulus);
-
-    if (next_token.type == Token_Equals) tree = nodes.make(Node_Equals);
-
-    if (next_token.type == Token_Plus_Equals)   tree = nodes.make(Node_Plus_Equals);
-    if (next_token.type == Token_Minus_Equals)  tree = nodes.make(Node_Minus_Equals);
-    if (next_token.type == Token_Times_Equals)  tree = nodes.make(Node_Times_Equals);
-    if (next_token.type == Token_Divide_Equals) tree = nodes.make(Node_Divide_Equals);
-    if (next_token.type == Token_Mod_Equals)    tree = nodes.make(Node_Mod_Equals);
-
-    if (tree) { // Todo: check if it is a binary operator
+    int binary_op = token_to_binary_op(next_token.type);
+    if (binary_op != -1) {
+        Node *tree = nodes.make(binary_op);
         tree->left = left;
         tree->right = parse_expression(tokenizer, flags);
 
+        if (get_precedence(tree->type) > get_precedence(tree->right->type)) {
+            rotate_tree(tree);
+        }
+
+        return tree;
     } else if (is_token_end_of_line(next_token.type)) {
         
         if (flags & Exp_Inside_Paren) {
-            report_error("Expected ')'", tokenizer->row, tokenizer->col);
+            report_error("Expected ')' before end of line", tokenizer->row, tokenizer->col);
         }
         if (flags & Exp_Ends_In_Comma) {
-            report_error("Expected ','", tokenizer->row, tokenizer->col);
+            report_error("Expected ',' before end of line", tokenizer->row, tokenizer->col);
         }
         
-        if (next_token.type == Token_Semicolon) {
-            Token peek_new_line = peek_token(tokenizer);
-            if (peek_new_line.type == Token_End_Of_Line) get_token(tokenizer);
-        }
-        
-        tree = left;
+        return left;
+
     } else if (next_token.type == Token_Close_Parenthesis) {
         if (!(flags & Exp_Inside_Paren)) {
             report_error("Unexpected ')'", tokenizer->row, tokenizer->col);
         }
 
-        tree = left;
+        return left;
+
     } else if (next_token.type == Token_Comma) {
         if (!(flags & Exp_Ends_In_Comma)) {
             report_error("Unexpected ','", tokenizer->row, tokenizer->col);
         }
-        tree = left;
+        return left;
     }
 
-    return tree;
+    report_error("Unexpected token.", tokenizer->row, tokenizer->col);
+    return NULL;
 }
 
 typedef f64 one_argument_function(f64);
@@ -555,20 +482,6 @@ f64 eval_tree(Node *node) {
 
         var->value = eval_tree(node->right);
         var->initialized = true;
-        return var->value;
-    }
-
-    if (is_special_equals(node->type)) {
-        Variable *var = node->left->var_ptr;
-        if (!var)              report_error("Variable node created incorrectly");
-        if (!var->initialized) report_error("Variable not initialized");
-
-        if (node->type == Node_Plus_Equals)   var->value += eval_tree(node->right);
-        if (node->type == Node_Minus_Equals)  var->value -= eval_tree(node->right);
-        if (node->type == Node_Times_Equals)  var->value *= eval_tree(node->right);
-        if (node->type == Node_Divide_Equals) var->value /= eval_tree(node->right);
-        if (node->type == Node_Mod_Equals)    var->value = (s64) var->value % (s64) eval_tree(node->right);
-
         return var->value;
     }
 
@@ -854,8 +767,7 @@ int isolate_unknown(Node *tree) {
 }
 
 #define print_spaceing 5
-void print_tree_horizontally(Node *node, int space)
-{ 
+void print_tree_horizontally(Node *node, int space) { 
     if (node == NULL) return;
 
     print_tree_horizontally(node->right, space + print_spaceing);
@@ -886,14 +798,17 @@ Node *parse_line(Tokenizer *tokenizer, bool verbose = false) {
         return NULL;
     }
     
-    Node *tree = parse_expression(tokenizer, 0);
-    
-    if (verbose) {
-        printf("\nSintax Tree (depth: %d):\n", depth(tree));
-        print_tree_horizontally(tree, 0);
+    Node *tree = nodes.make(Node_Equals);
+
+    tree->left = parse_expression(tokenizer, 0);
+
+    Token token = get_token(tokenizer);
+    if (token.type != Token_Equals) {
+        report_error("Expression without equal sign.");
+        return NULL;
     }
 
-    while (adjust_precedence(tree)) { /*printf("\nNew tree\n"); print_tree_horizontally(tree, 0);*/ }
+    tree->right = parse_expression(tokenizer, 0);
     
     if (verbose) {
         printf("\nSintax Tree after adjustment (depth: %d):\n", depth(tree));
@@ -950,8 +865,8 @@ bit_array get_bit_array(int length) {
     return result;
 }
 
-int NOTmain(void) {
-    
+int main(void) {
+
     initialize_functions_and_constants();
 
     String file;
@@ -967,6 +882,7 @@ int NOTmain(void) {
         if (token.type == Token_End_Of_File) break;
         
         auto parsed_line = parse_line(&tokenizer);
+        
         if (parsed_line) lines = add(lines, parsed_line, &number_of_lines);
     }
 
@@ -990,7 +906,7 @@ int NOTmain(void) {
             last_line_computed = at;
         }
 
-        loop_end:
+    loop_end:
         int total_lines_computed = 0;
         for (int i = 0; i < number_of_lines; i++) total_lines_computed += line_computed[i];
         if (total_lines_computed == number_of_lines) break;
