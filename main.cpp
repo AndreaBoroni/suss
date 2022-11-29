@@ -1,7 +1,7 @@
 #include "windows_handling.h"
 #include "parser.h"
 
-#define Assert(Expression) if (!(Expression)) {                                               \
+#define assert(Expression) if (!(Expression)) {                                               \
                                printf("Asertion failed here:\n %s:%d\n", __FILE__, __LINE__); \
                                *(int *)0 = 0; }
 
@@ -56,7 +56,9 @@ struct Variable {
     bool initialized;
 };
 
-enum Node_Types {
+enum Node_Type {
+    Node_Type_Unknown,
+
     Node_Number,
     Node_Variable,
     Node_Function_Call,
@@ -99,18 +101,18 @@ int get_precedence(int type) {
     return -1;
 }
 
-int token_to_binary_op(int token_type) {
+Node_Type token_to_binary_op(int token_type) {
     if (token_type == Token_Plus)     return Node_Plus;
     if (token_type == Token_Minus)    return Node_Minus;
     if (token_type == Token_Asterisk) return Node_Multiply;
     if (token_type == Token_Slash)    return Node_Divide;
     if (token_type == Token_Percent)  return Node_Modulus;
 
-    return -1;
+    return Node_Type_Unknown;
 }
 
 struct Node {
-    int type;
+    Node_Type type;
     f64 value;
 
     Function *fun_pointer;
@@ -169,7 +171,7 @@ void rotate_tree(Node *node) {
     Node *left_bottom  = bottom_node->left;
     Node *right_bottom = bottom_node->right;
 
-    int top_op = node->type;
+    Node_Type top_op = node->type;
     node->type = bottom_node->type;
     bottom_node->type = top_op;
 
@@ -189,7 +191,7 @@ struct Node_Bucket_Array {
     int length = 0;
 
     Node *get_node_mem() {
-        Assert(length < Node_Bucket_Length);
+        assert(length < Node_Bucket_Length);
         Node *result = &nodes[length++];
         memset(result, 0, sizeof(Node));
     }
@@ -201,7 +203,7 @@ struct Node_Bucket_Array {
         return result;
     }
 
-    Node *make(int type) {
+    Node *make(Node_Type type) {
         Node *result = get_node_mem();
         result->type = type;
         return result;
@@ -230,7 +232,7 @@ struct Function_Bucket_Array {
     Function *add(String name, void *fun_pointer, int number_of_arguments) {
         Function *result = &functions[length];
         length++;
-        Assert(length <= Function_Bucket_Length);
+        assert(length <= Function_Bucket_Length);
 
         result->name                = name;
         result->pointer             = fun_pointer;
@@ -240,7 +242,7 @@ struct Function_Bucket_Array {
     }
 
     Function operator [] (int index) {
-        Assert(index < Function_Bucket_Length);
+        assert(index < Function_Bucket_Length);
         return functions[index];
     }
 
@@ -267,7 +269,7 @@ struct Variable_Bucket_Array {
     Variable *add(String name, f64 value) {
         Variable *result = &variables[length];
         length++;
-        Assert(length <= Variable_Bucket_Length);
+        assert(length <= Variable_Bucket_Length);
 
         result->name        = name;
         result->value       = value;
@@ -279,7 +281,7 @@ struct Variable_Bucket_Array {
     Variable *add(String name) {
         Variable *result = &variables[length];
         length++;
-        Assert(length <= Variable_Bucket_Length);
+        assert(length <= Variable_Bucket_Length);
 
         result->name        = name;
         result->value       = 0;
@@ -289,7 +291,7 @@ struct Variable_Bucket_Array {
     }
 
     Variable operator [] (int index) {
-        Assert(index < Variable_Bucket_Length);
+        assert(index < Variable_Bucket_Length);
         return variables[index];
     }
 
@@ -407,8 +409,8 @@ Node *parse_expression(Tokenizer *tokenizer, int flags) {
 
     Token next_token = get_token(tokenizer);
     
-    int binary_op = token_to_binary_op(next_token.type);
-    if (binary_op != -1) {
+    Node_Type binary_op = token_to_binary_op(next_token.type);
+    if (binary_op != Node_Type_Unknown) {
         Node *tree = nodes.make(binary_op);
         tree->left = left;
         tree->right = parse_expression(tokenizer, flags);
@@ -451,7 +453,7 @@ typedef f64 one_argument_function(f64);
 typedef f64 two_argument_function(f64, f64);
 
 f64 eval_tree(Node *node) {
-    Assert(node);
+    assert(node);
 
     if (node->type == Node_Number) return node->value;
     if (node->type == Node_Variable) {
@@ -507,23 +509,6 @@ f64 eval_tree(Node *node) {
     report_error("Node type not supported/recognized");
 }
 
-enum find_unkown_result {
-    Unknown_Found,
-    Unknown_Not_Found,
-    Found_More_Than_One_Unknown,
-    Found_Unknown_More_Than_Once,
-    Root_Node_Is_Not_Equals,
-
-    On_Right_Node,
-    On_Left_Node,
-    
-    On_Right_Left_Node,
-    On_Left_Left_Node,
-
-    On_Right_Right_Node,
-    On_Left_Right_Node,
-};
-
 Node **add(Node **queue, Node *node, int *length) {
     Node **result = (Node **) calloc((*length) + 1, sizeof(Node **));
     
@@ -538,61 +523,51 @@ Node **add(Node **queue, Node *node, int *length) {
     return result;
 }
 
-int where_in_the_tree(int first_level, int second_level) {
-    if (first_level == 1 && second_level == -1) return On_Left_Node;
-    if (first_level == 2 && second_level == -1) return On_Right_Node;
+#define No_Branch   -1
+#define Left_Branch  1
+#define Right_Branch 2
 
-    if (first_level == 1 && second_level == 1) return On_Left_Left_Node;
-    if (first_level == 1 && second_level == 2) return On_Left_Right_Node;
-    if (first_level == 2 && second_level == 1) return On_Right_Left_Node;
-    if (first_level == 2 && second_level == 2) return On_Right_Right_Node;
+struct Unknown_Search_Result {
+    bool error = false;
+    Variable *found_variable = NULL;
 
-    Assert(false);
-    return -1;
-}
+    // 0 = Left, 1 = Right, -1 = not computed/nothing
+    int overall_level_1 = No_Branch;
+    int overall_level_2 = No_Branch;
+};
 
-Variable *var_found;
-int find_unknown(Node *tree, int first_level = -1, int second_level = -1) {
-    if (first_level == -1 && second_level == -1) {
-        var_found = NULL;
-        if (tree->type != Node_Equals) return Root_Node_Is_Not_Equals;
-    }
+void find_unknown(Node *tree, Unknown_Search_Result *result, int l1 = -1, int l2 = -1) {
     
-    if (tree && tree->var_ptr && !tree->var_ptr->initialized) {
-        if (var_found) {
-            if (are_strings_equal(var_found->name, tree->var_ptr->name)) return Found_Unknown_More_Than_Once;
-            return Found_More_Than_One_Unknown;
+    if (!tree) {
+        result->error = true;
+        return;
+    }
+
+    if (tree->var_ptr && !tree->var_ptr->initialized) {
+        if (result->found_variable) {
+            result->error = true;
+        } else {
+            result->found_variable = tree->var_ptr;
+            result->overall_level_1 = l1;
+            result->overall_level_2 = l2;
         }
-        var_found = tree->var_ptr;
-        return where_in_the_tree(first_level, second_level);
+    } else {
+        if (tree->left) {
+            if (l1 != No_Branch) {
+                find_unknown(tree->left, result, l1, Left_Branch);
+            } else {
+                find_unknown(tree->left, result, Left_Branch, No_Branch);
+            }
+        }
+
+        if (tree->right) {
+            if (l1 != No_Branch) {
+                find_unknown(tree->right, result, l1, Right_Branch);
+            } else {
+                find_unknown(tree->right, result, Right_Branch, No_Branch);
+            }
+        }
     }
-
-    int result_left  = -1;
-    if (tree->left) {
-        int next_first_level  =  first_level  == -1                       ? 1 : first_level;
-        int next_second_level = (second_level == -1 && first_level != -1) ? 1 : second_level;
-
-        result_left = find_unknown(tree->left, next_first_level, next_second_level);
-    }
-
-    int result_right = -1;
-    if (tree->right) {
-        int next_first_level  =  first_level  == -1                       ? 2 : first_level;
-        int next_second_level = (second_level == -1 && first_level != -1) ? 2 : second_level;
-
-        result_right = find_unknown(tree->right, next_first_level, next_second_level);
-    }
-    
-    if (result_right == Found_Unknown_More_Than_Once) return Found_Unknown_More_Than_Once;
-	if (result_left  == Found_Unknown_More_Than_Once) return Found_Unknown_More_Than_Once;
-	if (result_right == Found_More_Than_One_Unknown)  return Found_More_Than_One_Unknown;
-	if (result_left  == Found_More_Than_One_Unknown)  return Found_More_Than_One_Unknown;
-
-    if (result_left == -1 && result_right == -1) return Unknown_Not_Found;
-    if (result_left  >= On_Right_Node)           return result_left; // Hack
-    if (result_right >= On_Right_Node)           return result_right;
-
-    return Unknown_Not_Found;
 }
 
 Function *maybe_inverse_function(Function *fun) {
@@ -606,44 +581,60 @@ Function *maybe_inverse_function(Function *fun) {
     return NULL;
 }
 
+#define Unknown_Found     0
+#define Multiple_Unknowns 1
+#define Unknown_Not_Found 2
+
 int isolate_unknown(Node *tree) {
     if (tree->type != Node_Equals) {
         report_error("Top node must be operator =");
+        return -1;
     }
     
     while (true) {
-        if (!tree->left || !tree->right) report_error("Error while isolating unknown");
+        if (!tree->left || !tree->right) {
+            report_error("Error while isolating unknown");
+            return -1;
+        }
 
-        if (tree->left && tree->left->type == Node_Parenthesized_Expression) {
+        if (tree->left->type == Node_Parenthesized_Expression) {
             Node *expression = tree->left->left;
-            free(tree->left);
             tree->left = expression;
         }
-        if (tree->right && tree->right->type == Node_Parenthesized_Expression) {
+        if (tree->right->type == Node_Parenthesized_Expression) {
             Node *expression = tree->right->left;
-            free(tree->right);
             tree->right = expression;
         }
+        
+        Unknown_Search_Result result;
+        find_unknown(tree, &result);
 
-        int where = find_unknown(tree);
-        if (where < On_Right_Node) return where; // Hack
+        if (result.error)                        return Multiple_Unknowns;
+        if (!result.found_variable)              return Unknown_Not_Found;
+        if (result.overall_level_1 == No_Branch) return Unknown_Not_Found;
 
-        if (where == On_Right_Node || where == On_Right_Left_Node || where == On_Right_Right_Node) {
+        // If the unknown is on the right we swap right and left so we don't copy paste
+        // a lot of code with right and left swapped
+        if (result.overall_level_1 == Right_Branch) {
+            result.overall_level_1 = Left_Branch;
+
             Node *temp  = tree->left;
             tree->left  = tree->right;
             tree->right = temp;
-            where++; // Hack
         }
 
-        if (where == On_Left_Node) return Unknown_Found;
+        int level_2 = result.overall_level_2;
+
+        // This checks if the unknown is on the top level
+        if (level_2 == No_Branch) return Unknown_Found;
       
         if (tree->left->type == Node_Function_Call) {
-            auto fun = tree->left->fun_pointer;
+            Function *fun = tree->left->fun_pointer;
             if (!fun) report_error("Function node created incorrectly");
-            auto simple_inverse_fun = maybe_inverse_function(fun);
+            Function *simple_inverse_fun = maybe_inverse_function(fun);
             
-            Node *unknown    = where == On_Left_Left_Node ? tree->left->left  : tree->left->right;
-            Node *argument   = where == On_Left_Left_Node ? tree->left->right : tree->left->left;
+            Node *unknown    = level_2 == Left_Branch ? tree->left->left  : tree->left->right;
+            Node *argument   = level_2 == Left_Branch ? tree->left->right : tree->left->left;
             Node *right_side = tree->right;
 
             tree->right = tree->left;
@@ -677,7 +668,7 @@ int isolate_unknown(Node *tree) {
                 tree->right = minus_node;
                 
             } else if (fun == functions.find("pow")) {
-                if (where == On_Left_Left_Node) {
+                if (level_2 == Left_Branch) {
                     auto division_node   = nodes.make(Node_Divide);
                     division_node->left  = nodes.make_number(1);
                     division_node->right = argument;
@@ -692,7 +683,7 @@ int isolate_unknown(Node *tree) {
                     tree->right->right       = argument;
                 }
             } else if (fun == functions.find("log")) {
-                if (where == On_Left_Left_Node) {
+                if (level_2 == Left_Branch) {
                     tree->right->fun_pointer = functions.find("pow");
                     tree->right->left        = argument;
                     tree->right->right       = right_side;
@@ -710,45 +701,40 @@ int isolate_unknown(Node *tree) {
             } else report_error("This function cannot be inverted");
 
             tree->left = unknown;
-            continue;
-        }
+        } else if (tree->left->type == Node_Unary_Minus) {
+            
+            Node *unary_minus = tree->left;
+            Node *right = tree->right;
+            Node *left  = tree->left->left;
 
-        if (where == On_Left_Left_Node) {
+            tree->left = left;
+            tree->right = unary_minus;
+            unary_minus->left = right;
+
+        } else {
+
             Node *left  = tree->left;
             Node *right = tree->right;
             Node *left_left  = tree->left->left;
             Node *left_right = tree->left->right;
             
-            int inv_operator = -1;
+            Node_Type inv_operator = Node_Type_Unknown;
             if (left->type == Node_Plus)     inv_operator = Node_Minus;
             if (left->type == Node_Minus)    inv_operator = Node_Plus;
             if (left->type == Node_Divide)   inv_operator = Node_Multiply;
             if (left->type == Node_Multiply) inv_operator = Node_Divide;
             if (left->type == Node_Modulus)  report_error("Modulus (%) operator cannot be inverted");
-            
-            if (inv_operator != -1) {
+
+            assert(inv_operator != Node_Type_Unknown);
+
+            if (level_2 == Left_Branch) {
                 left->type  = inv_operator;
                 left->left  = right;
                 left->right = left_right;
 
                 tree->left  = left_left;
                 tree->right = left;
-            }
-        }
-
-        if (where == On_Left_Right_Node) {
-            Node *left  = tree->left;
-            Node *right = tree->right;
-            Node *left_left  = tree->left->left;
-            Node *left_right = tree->left->right;
-            
-            int inv_operator = -1;
-            if (left->type == Node_Plus)     inv_operator = Node_Minus;
-            if (left->type == Node_Minus)    inv_operator = Node_Minus;
-            if (left->type == Node_Multiply) inv_operator = Node_Divide;
-            if (left->type == Node_Divide)   inv_operator = Node_Divide;
-            
-            if (inv_operator != -1) {
+            } else if (level_2 == Right_Branch) {
                 if (left->type == Node_Minus || left->type == Node_Divide) {
                     Node *temp = left_left;
                     left_left  = right;
@@ -761,7 +747,7 @@ int isolate_unknown(Node *tree) {
 
                 tree->left  = left_right;
                 tree->right = left;
-            }
+            } else assert(false);
         }
     }
 }
@@ -811,7 +797,7 @@ Node *parse_line(Tokenizer *tokenizer, bool verbose = false) {
     tree->right = parse_expression(tokenizer, 0);
     
     if (verbose) {
-        printf("\nSintax Tree after adjustment (depth: %d):\n", depth(tree));
+        printf("\nSintax Tree (depth: %d):\n", depth(tree));
         print_tree_horizontally(tree, 0);
     }
 
@@ -871,7 +857,7 @@ int main(void) {
 
     String file;
     file.data = load_file_memory("calc.txt", &file.count);
-    Assert(file.data);
+    assert(file.data);
 
     Node **lines = NULL;
     int number_of_lines = 0;
@@ -881,7 +867,7 @@ int main(void) {
         Token token = peek_token(&tokenizer);
         if (token.type == Token_End_Of_File) break;
         
-        auto parsed_line = parse_line(&tokenizer);
+        auto parsed_line = parse_line(&tokenizer, true);
         
         if (parsed_line) lines = add(lines, parsed_line, &number_of_lines);
     }
@@ -895,10 +881,8 @@ int main(void) {
 
         if (line_computed[at]) goto loop_end;
         
-        if (result == Root_Node_Is_Not_Equals)      line_computed.set_bit(at);
-        if (result == Unknown_Not_Found)            line_computed.set_bit(at);
-        if (result == Found_More_Than_One_Unknown)  goto loop_end;
-        if (result == Found_Unknown_More_Than_Once) goto loop_end;
+        if (result == Unknown_Not_Found) line_computed.set_bit(at);
+        if (result == Multiple_Unknowns) goto loop_end;
 
         if (result == Unknown_Found) {
             f64 eval_result = eval_tree(line);
