@@ -153,16 +153,6 @@ void print_node(Node *node) {
     if (node->parenthesized) printf(")");
 }
 
-void print_tree(Node *tree, int level, char where) {
-
-    printf("[%d %c] ", level, where);
-    print_node(tree);
-    printf("\n");
-
-    if (tree->left)  print_tree(tree->left,  level + 1, 'l');
-    if (tree->right) print_tree(tree->right, level + 1, 'r');
-}
-
 void rotate_tree(Node *node) {
     Node *bottom_node = node->right;
     
@@ -487,19 +477,16 @@ f64 eval_tree(Node *node) {
     }
 
     if (node->type == Node_Function_Call) {
-        auto node_function = node->fun_pointer;
+        Function *node_function = node->fun_pointer;
         if (!node_function) report_error("Function node created incorrectly");
         
         if (node_function->number_of_arguments == 1) {
             one_argument_function *fun = (one_argument_function *) node_function->pointer;
             return fun(eval_tree(node->left));
-        }
-        else if (node_function->number_of_arguments == 2) {
-            two_argument_function *fun = (two_argument_function *) node_function->pointer;
-            f64 argument_1 = eval_tree(node->left);
-            f64 argument_2 = eval_tree(node->right);
 
-            return fun(argument_1, argument_2);
+        } else if (node_function->number_of_arguments == 2) {
+            two_argument_function *fun = (two_argument_function *) node_function->pointer;
+            return fun(eval_tree(node->left), eval_tree(node->right));
         }
     }
 
@@ -520,60 +507,52 @@ Node **add(Node **queue, Node *node, int *length) {
     return result;
 }
 
-#define No_Branch   -1
-#define Left_Branch  1
-#define Right_Branch 2
+enum Branch {
+    No_Branch,
+    Left_Branch,
+    Right_Branch,
+};
 
 struct Unknown_Search_Result {
     bool error = false;
     Variable *found_variable = NULL;
 
-    // 0 = Left, 1 = Right, -1 = not computed/nothing
-    int overall_level_1 = No_Branch;
-    int overall_level_2 = No_Branch;
+    Branch global_branch_1 = No_Branch;
+    Branch global_branch_2 = No_Branch;
 };
 
-void find_unknown(Node *tree, Unknown_Search_Result *result, int l1 = -1, int l2 = -1) {
-    
-    if (!tree) {
-        result->error = true;
-        return;
-    }
+void find_unknown(Node *tree, Unknown_Search_Result *result, Branch b1 = No_Branch, Branch b2 = No_Branch) {
+    assert(tree);
 
     if (tree->var_ptr && !tree->var_ptr->initialized) {
         if (result->found_variable) {
             result->error = true;
         } else {
             result->found_variable = tree->var_ptr;
-            result->overall_level_1 = l1;
-            result->overall_level_2 = l2;
+            result->global_branch_1 = b1;
+            result->global_branch_2 = b2;
         }
     } else {
-        if (tree->left) {
-            if (l1 != No_Branch) {
-                find_unknown(tree->left, result, l1, Left_Branch);
-            } else {
-                find_unknown(tree->left, result, Left_Branch, No_Branch);
-            }
-        }
-
-        if (tree->right) {
-            if (l1 != No_Branch) {
-                find_unknown(tree->right, result, l1, Right_Branch);
-            } else {
-                find_unknown(tree->right, result, Right_Branch, No_Branch);
-            }
+        if (b2 != No_Branch) {
+            if (tree->left)  find_unknown(tree->left,  result, b1, b2);
+            if (tree->right) find_unknown(tree->right, result, b1, b2);
+        } else if (b1 != No_Branch) {
+            if (tree->left)  find_unknown(tree->left,  result, b1, Left_Branch);
+            if (tree->right) find_unknown(tree->right, result, b1, Right_Branch);
+        } else {
+            if (tree->left)  find_unknown(tree->left,  result, Left_Branch,  No_Branch);
+            if (tree->right) find_unknown(tree->right, result, Right_Branch, No_Branch);
         }
     }
 }
 
 Function *maybe_inverse_function(Function *fun) {
-    if      (fun == functions.find("sin"))  return functions.find("asin");
-    else if (fun == functions.find("asin")) return functions.find("sin");
-    else if (fun == functions.find("cos"))  return functions.find("acos");
-    else if (fun == functions.find("acos")) return functions.find("cos");
-    else if (fun == functions.find("tan"))  return functions.find("atan");
-    else if (fun == functions.find("atan")) return functions.find("tan");
+    if      (are_strings_equal(fun->name, "sin"))  return functions.find("asin");
+    else if (are_strings_equal(fun->name, "asin")) return functions.find("sin");
+    else if (are_strings_equal(fun->name, "cos"))  return functions.find("acos");
+    else if (are_strings_equal(fun->name, "acos")) return functions.find("cos");
+    else if (are_strings_equal(fun->name, "tan"))  return functions.find("atan");
+    else if (are_strings_equal(fun->name, "atan")) return functions.find("tan");
 
     return NULL;
 }
@@ -583,13 +562,15 @@ Function *maybe_inverse_function(Function *fun) {
 #define Unknown_Not_Found 2
 
 int isolate_unknown(Node *tree) {
+    assert(tree);
+    
     if (tree->type != Node_Equals) {
         report_error("Top node must be operator =");
         return -1;
     }
     
     while (true) {
-        if (!tree->left || !tree->right) {
+        if (!tree || !tree->left || !tree->right) {
             report_error("Error while isolating unknown");
             return -1;
         }
@@ -599,19 +580,19 @@ int isolate_unknown(Node *tree) {
 
         if (result.error)                        return Multiple_Unknowns;
         if (!result.found_variable)              return Unknown_Not_Found;
-        if (result.overall_level_1 == No_Branch) return Unknown_Not_Found;
+        if (result.global_branch_1 == No_Branch) return Unknown_Not_Found;
 
         // If the unknown is on the right we swap right and left so we don't copy paste
         // a lot of code with right and left swapped
-        if (result.overall_level_1 == Right_Branch) {
-            result.overall_level_1 = Left_Branch;
+        if (result.global_branch_1 == Right_Branch) {
+            result.global_branch_1 = Left_Branch;
 
             Node *temp  = tree->left;
             tree->left  = tree->right;
             tree->right = temp;
         }
 
-        int level_2 = result.overall_level_2;
+        Branch level_2 = result.global_branch_2;
 
         // This checks if the unknown is on the top level
         if (level_2 == No_Branch) return Unknown_Found;
@@ -855,7 +836,7 @@ int main(void) {
         Token token = peek_token(&tokenizer);
         if (token.type == Token_End_Of_File) break;
         
-        auto parsed_line = parse_line(&tokenizer, true);
+        Node *parsed_line = parse_line(&tokenizer);
         
         if (parsed_line) lines = add(lines, parsed_line, &number_of_lines);
     }
@@ -864,21 +845,20 @@ int main(void) {
     int at = 0;
     int last_line_computed = 0;
     while (true) {
-        Node *line = lines[at];
-        int result = isolate_unknown(line);
+        if (!line_computed[at]) {
 
-        if (line_computed[at]) goto loop_end;
-        
-        if (result == Unknown_Not_Found) line_computed.set_bit(at);
-        if (result == Multiple_Unknowns) goto loop_end;
-
-        if (result == Unknown_Found) {
-            f64 eval_result = eval_tree(line);
-            line_computed.set_bit(at);
-            last_line_computed = at;
+            Node *line = lines[at];
+            int result = isolate_unknown(line);
+            
+            if (result == Unknown_Not_Found) {
+                line_computed.set_bit(at);
+            } else if (result == Unknown_Found) {
+                f64 eval_result = eval_tree(line);
+                line_computed.set_bit(at);
+                last_line_computed = at;
+            }
         }
 
-    loop_end:
         int total_lines_computed = 0;
         for (int i = 0; i < number_of_lines; i++) total_lines_computed += line_computed[i];
         if (total_lines_computed == number_of_lines) break;
