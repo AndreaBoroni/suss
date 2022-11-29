@@ -70,36 +70,12 @@ enum Node_Type {
     Node_Modulus,
     Node_Unary_Minus,
     Node_Equals,
-
-    Node_Parenthesized_Expression,
 };
 
 enum Expression_Flags {
     Exp_Inside_Paren  = 0x01,
     Exp_Ends_In_Comma = 0x02,
 };
-
-int get_precedence(int type) {
-
-    switch(type) {
-        case Node_Equals: return 0;
-        
-        case Node_Plus:
-        case Node_Minus: return 100;
-        
-        case Node_Multiply:
-        case Node_Divide:
-        case Node_Modulus: return 150;
-
-        case Node_Unary_Minus: return 200;
-
-        case Node_Number:
-        case Node_Variable:
-        case Node_Function_Call:
-        case Node_Parenthesized_Expression: return 1000;
-    }
-    return -1;
-}
 
 Node_Type token_to_binary_op(int token_type) {
     if (token_type == Token_Plus)     return Node_Plus;
@@ -120,7 +96,32 @@ struct Node {
 
     Node *left;
     Node *right;
+
+    bool parenthesized;
 };
+
+int get_precedence(Node *node) {
+
+    if (node->parenthesized) return 1000;
+    
+    switch(node->type) {
+        case Node_Equals: return 0;
+        
+        case Node_Plus:
+        case Node_Minus: return 100;
+        
+        case Node_Multiply:
+        case Node_Divide:
+        case Node_Modulus: return 150;
+
+        case Node_Unary_Minus: return 200;
+
+        case Node_Number:
+        case Node_Variable:
+        case Node_Function_Call: return 1000;
+    }
+    return -1;
+}
 
 bool is_token_end_of_line(int type) {
     if (type == Token_Semicolon)   return true;
@@ -131,16 +132,17 @@ bool is_token_end_of_line(int type) {
 }
 
 void print_node(Node *node) {
+    if (node->parenthesized) printf("(");
     if (node->type == Node_Number) printf("%.1f", node->value);
 
-    if (node->type == Node_Plus)       printf(" + ");
-    if (node->type == Node_Minus)      printf(" - ");
-    if (node->type == Node_Multiply)   printf(" * ");
-    if (node->type == Node_Divide)     printf(" / ");
-    if (node->type == Node_Modulus)    printf(" %% ");
-    if (node->type == Node_Equals) printf(" = ");
+    if (node->type == Node_Plus)     printf("+");
+    if (node->type == Node_Minus)    printf("-");
+    if (node->type == Node_Multiply) printf("*");
+    if (node->type == Node_Divide)   printf("/");
+    if (node->type == Node_Modulus)  printf("%%");
+    if (node->type == Node_Equals)   printf("=");
 
-    if (node->type == Node_Unary_Minus) printf(" - ");
+    if (node->type == Node_Unary_Minus) printf("-");
 
     if (node->type == Node_Function_Call) {
         for (int i = 0; i < node->fun_pointer->name.count; i++) printf("%c", node->fun_pointer->name.data[i]);
@@ -148,10 +150,7 @@ void print_node(Node *node) {
     if (node->type == Node_Variable) {
         for (int i = 0; i < node->var_ptr->name.count; i++) printf("%c", node->var_ptr->name.data[i]);
     }
- 
-    if (node->type == Node_Parenthesized_Expression) {
-        printf("( )");
-    }
+    if (node->parenthesized) printf(")");
 }
 
 void print_tree(Node *tree, int level, char where) {
@@ -366,8 +365,8 @@ Node *parse_subexpression(Tokenizer *tokenizer) {
             node = nodes.make_number(token.f);
         } break;
         case Token_Open_Parenthesis: {
-            node = nodes.make(Node_Parenthesized_Expression);
-            node->left = parse_expression(tokenizer, Exp_Inside_Paren);
+            node = parse_expression(tokenizer, Exp_Inside_Paren);
+            node->parenthesized = true;
         } break;
         case Token_Identifier: {
             Function *fun = functions.find(token.text);
@@ -383,7 +382,7 @@ Node *parse_subexpression(Tokenizer *tokenizer) {
                 if (fun->number_of_arguments == 1) {
                     node->left  = parse_expression(tokenizer, Exp_Inside_Paren);
                 }
-                if (fun->number_of_arguments == 2) { // Todo: loop this (when the tree has more than 2 leafs)
+                if (fun->number_of_arguments == 2) { // Todo: loop this (when the function has more than 2 arguments)
                     node->left  = parse_expression(tokenizer, Exp_Ends_In_Comma);
                     node->right = parse_expression(tokenizer, Exp_Inside_Paren);
                 }
@@ -415,7 +414,7 @@ Node *parse_expression(Tokenizer *tokenizer, int flags) {
         tree->left = left;
         tree->right = parse_expression(tokenizer, flags);
 
-        if (get_precedence(tree->type) > get_precedence(tree->right->type)) {
+        if (get_precedence(tree) > get_precedence(tree->right)) {
             rotate_tree(tree);
         }
 
@@ -503,8 +502,6 @@ f64 eval_tree(Node *node) {
             return fun(argument_1, argument_2);
         }
     }
-
-    if (node->type == Node_Parenthesized_Expression) return eval_tree(node->left);
 
     report_error("Node type not supported/recognized");
 }
@@ -597,15 +594,6 @@ int isolate_unknown(Node *tree) {
             return -1;
         }
 
-        if (tree->left->type == Node_Parenthesized_Expression) {
-            Node *expression = tree->left->left;
-            tree->left = expression;
-        }
-        if (tree->right->type == Node_Parenthesized_Expression) {
-            Node *expression = tree->right->left;
-            tree->right = expression;
-        }
-        
         Unknown_Search_Result result;
         find_unknown(tree, &result);
 
