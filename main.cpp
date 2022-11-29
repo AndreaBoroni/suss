@@ -287,7 +287,7 @@ struct Variable_Bucket_Array {
         }
         return NULL;
     }
-    
+
     Variable *find(char *name) {
 		return find(_s(name));
 	}
