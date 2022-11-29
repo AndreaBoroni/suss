@@ -171,30 +171,27 @@ void rotate_tree(Node *node) {
     bottom_node->right = left_bottom;
 }
 
-Node *parse_expression(Tokenizer *tokenizer, int flags);
-Node *parse_subexpression(Tokenizer *tokenizer);
-
 #define Node_Bucket_Length 4096
 struct Node_Bucket_Array {
     Node nodes[Node_Bucket_Length];
-    int length = 0;
+    int used = 0;
 
     Node *get_node_mem() {
-        assert(length < Node_Bucket_Length);
-        Node *result = &nodes[length++];
+        assert(used < Node_Bucket_Length);
+        Node *result = &nodes[used++];
         memset(result, 0, sizeof(Node));
+    }
+
+    Node *make(Node_Type type) {
+        Node *result = get_node_mem();
+        result->type = type;
+        return result;
     }
 
     Node *make_variable(Variable *pointer) {
         Node *result = get_node_mem();
         result->type = Node_Variable;
         result->var_ptr = pointer;
-        return result;
-    }
-
-    Node *make(Node_Type type) {
-        Node *result = get_node_mem();
-        result->type = type;
         return result;
     }
 
@@ -290,6 +287,7 @@ struct Variable_Bucket_Array {
         }
         return NULL;
     }
+    
     Variable *find(char *name) {
 		return find(_s(name));
 	}
@@ -339,6 +337,7 @@ void initialize_functions_and_constants() {
     variables.add(_s("e"),  2.71828182845);
 }
 
+Node *parse_expression(Tokenizer *tokenizer, int flags);
 Node *parse_subexpression(Tokenizer *tokenizer) {
     Node *node = NULL;
 
@@ -372,7 +371,7 @@ Node *parse_subexpression(Tokenizer *tokenizer) {
                 if (fun->number_of_arguments == 1) {
                     node->left  = parse_expression(tokenizer, Exp_Inside_Paren);
                 }
-                if (fun->number_of_arguments == 2) { // Todo: loop this (when the function has more than 2 arguments)
+                if (fun->number_of_arguments == 2) {
                     node->left  = parse_expression(tokenizer, Exp_Ends_In_Comma);
                     node->right = parse_expression(tokenizer, Exp_Inside_Paren);
                 }
@@ -494,17 +493,12 @@ f64 eval_tree(Node *node) {
 }
 
 Node **add(Node **queue, Node *node, int *length) {
-    Node **result = (Node **) calloc((*length) + 1, sizeof(Node **));
-    
-    if (queue) {
-        memcpy(result, queue, (*length) * sizeof(Node **));
-        free(queue);
-    }
+    queue = (Node **) realloc(queue, ((*length) + 1) * sizeof(Node **));
 
-    result[(*length)] = node;
+    queue[(*length)] = node;
     *length = *length + 1;
 
-    return result;
+    return queue;
 }
 
 enum Branch {
@@ -820,12 +814,17 @@ bit_array get_bit_array(int length) {
     return result;
 }
 
-int main(void) {
+int main(int argc, char** argv) {
 
     initialize_functions_and_constants();
 
     String file;
-    file.data = load_file_memory("calc.txt", &file.count);
+
+    if (argc > 1) {
+        file.data = load_file_memory(argv[1], &file.count);
+    } else {
+        file.data = load_file_memory("calc.txt", &file.count);
+    }
     assert(file.data);
 
     Node **lines = NULL;

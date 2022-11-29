@@ -96,43 +96,19 @@ enum Token_Types {
     Token_Identifier,
     Token_Number,
     Token_Comment,
-    Token_String,
-    Token_Preprocessor_Directive,
 
     Token_Open_Parenthesis,
     Token_Close_Parenthesis,
-    Token_Open_Bracket,
-    Token_Close_Bracket,
-    Token_Open_Braces,
-    Token_Close_Braces,
-    Token_Colon,
     Token_Semicolon,
     Token_Plus,
     Token_Minus,
     Token_Asterisk,
     Token_Percent,
-    Token_Question_Mark,
     Token_Slash,
     Token_Comma,
-    Token_Dot,
-    Token_Or,
-    Token_And,
-    Token_Not,
     Token_Pound,
 
     Token_Equals,
-    Token_Plus_Equals,
-    Token_Minus_Equals,
-    Token_Times_Equals,
-    Token_Divide_Equals,
-    Token_Mod_Equals,
-
-    Token_Not_Equals,
-    Token_Equals_Equals,
-    Token_Lower_Than,
-    Token_Lower_Equals,
-    Token_Greater_Than,
-    Token_Greater_Equals,
 
     Token_Spaces,
     Token_End_Of_Line,
@@ -145,11 +121,11 @@ Token get_raw_token(Tokenizer *tokenizer) {
     
     Token token;
 
-    token.col  = tokenizer->col;
-    token.row  = tokenizer->row;
-    token.text = tokenizer->input;
+    token.col      = tokenizer->col;
+    token.row      = tokenizer->row;
+    token.from_end = tokenizer->input.count;
 
-    token.from_end  = tokenizer->input.count;
+    token.text = tokenizer->input;
 
     char c = tokenizer->at[0];
     advance_chars(tokenizer, 1);
@@ -159,106 +135,14 @@ Token get_raw_token(Tokenizer *tokenizer) {
 
         case '(': token.type = Token_Open_Parenthesis;  break;
         case ')': token.type = Token_Close_Parenthesis; break;
-        case '[': token.type = Token_Open_Bracket;      break;
-        case ']': token.type = Token_Close_Bracket;     break;
-        case '{': token.type = Token_Open_Braces;       break;
-        case '}': token.type = Token_Close_Braces;      break;
-        case ':': token.type = Token_Colon;             break;
         case ';': token.type = Token_Semicolon;         break;
         case ',': token.type = Token_Comma;             break;
-        case '.': token.type = Token_Dot;               break;
-        case '*': {
-            if (tokenizer->at[0] == '=') {
-                token.type = Token_Times_Equals;
-                advance_chars(tokenizer, 1);
-            } else token.type = Token_Asterisk;
-        } break;
-        case '+': {
-            if (tokenizer->at[0] == '=') {
-                token.type = Token_Plus_Equals;
-                advance_chars(tokenizer, 1);
-            } else token.type = Token_Plus;
-        } break;
-        case '-': {
-            if (tokenizer->at[0] == '=') {
-                token.type = Token_Minus_Equals;
-                advance_chars(tokenizer, 1);
-            } else token.type = Token_Minus;
-        } break;
-        case '%': {
-            if (tokenizer->at[0] == '=') {
-                token.type = Token_Mod_Equals;
-                advance_chars(tokenizer, 1);
-            } else token.type = Token_Percent;
-        } break;
-        case '>': {
-            if (tokenizer->at[0] == '=') {
-                token.type = Token_Greater_Equals;
-                advance_chars(tokenizer, 1);
-            } else token.type = Token_Greater_Than;
-        } break;
-        case '<': {
-            if (tokenizer->at[0] == '=') {
-                token.type = Token_Lower_Equals;
-                advance_chars(tokenizer, 1);
-            } else token.type = Token_Lower_Than;
-        } break;
-        case '!': {
-            if (tokenizer->at[0] == '=') {
-                token.type = Token_Not_Equals;
-                advance_chars(tokenizer, 1);
-            } else token.type = Token_Not;
-        } break;
-        case '&': token.type = Token_And; break;
-        case '|': token.type = Token_Or;  break;
-        case '=': {
-            if (tokenizer->at[0] == '=') {
-                token.type = Token_Equals_Equals;
-                advance_chars(tokenizer, 1);
-            } else token.type = Token_Equals;
-        } break;
-        case '\'': {
-            token.type = Token_String;
-
-            while (tokenizer->at[0] != '\'' && tokenizer->at[0]) {
-                if (tokenizer->at[0] == '\\' && tokenizer->at[1]) advance_chars(tokenizer, 1);
-                if (double_return_sequence(tokenizer->at[0], tokenizer->at[1])) advance_chars(tokenizer, 1);
-
-                if (is_end_of_line(tokenizer->at[0])) {
-                    tokenizer->row++;
-                    tokenizer->col = 1;
-                }
-                advance_chars(tokenizer, 1);
-            }
-
-            if (tokenizer->at[0] == '\'') advance_chars(tokenizer, 1);
-        } break;
-
-        case '"': {
-            token.type = Token_String;
-
-            while (tokenizer->at[0] != '"' && tokenizer->at[0]) {
-                if (tokenizer->at[0] == '\\' && tokenizer->at[1]) advance_chars(tokenizer, 1);
-                if (double_return_sequence(tokenizer->at[0], tokenizer->at[1])) advance_chars(tokenizer, 1);
-
-                if (is_end_of_line(tokenizer->at[0])) {
-                    tokenizer->row++;
-                    tokenizer->col = 1;
-                }
-                advance_chars(tokenizer, 1);
-            }
-
-            if (tokenizer->at[0] == '"') advance_chars(tokenizer, 1);
-        } break;
-
-        case '#': {
-            if (is_alpha(tokenizer->at[0])) {
-                token.type = Token_Preprocessor_Directive;
-                while (is_alpha(tokenizer->at[0])) advance_chars(tokenizer, 1);
-            } else {
-                token.type = Token_Pound;
-            }
-        } break;
+        case '*': token.type = Token_Asterisk;          break;
+        case '+': token.type = Token_Plus;              break;
+        case '-': token.type = Token_Minus;             break;
+        case '%': token.type = Token_Percent;           break;
+        case '=': token.type = Token_Equals;            break;
+        case '#': token.type = Token_Pound;             break;
 
         case '/': {
             if (tokenizer->at[0] == '/') {
@@ -268,23 +152,6 @@ Token get_raw_token(Tokenizer *tokenizer) {
                 while (tokenizer->at[0] && !is_end_of_line(tokenizer->at[0])) {
                     advance_chars(tokenizer, 1);
                 }
-            } else if (tokenizer->at[0] == '*') {
-                token.type = Token_Comment;
-                
-                advance_chars(tokenizer, 1);
-                while (tokenizer->at[0] && !(tokenizer->at[0] == '*' && tokenizer->at[1] == '/')) {
-                    if (double_return_sequence(tokenizer->at[0], tokenizer->at[1])) advance_chars(tokenizer, 1);
-
-                    if (is_end_of_line(tokenizer->at[0])) {
-                        tokenizer->row++;
-                        tokenizer->col = 1;
-                    }
-                    advance_chars(tokenizer, 1);
-                }
-                if (tokenizer->at[0] == '*' && tokenizer->at[1] == '/') advance_chars(tokenizer, 2);
-            } else if (tokenizer->at[0] == '=') {
-                token.type = Token_Divide_Equals;
-                advance_chars(tokenizer, 1);
             } else {
                 token.type = Token_Slash;
             }
@@ -297,7 +164,7 @@ Token get_raw_token(Tokenizer *tokenizer) {
                 while (tokenizer->at[0] && (is_alpha(tokenizer->at[0]) || is_numeric(tokenizer->at[0]))) {
                     advance_chars(tokenizer, 1);
                 }
-            } else if (is_numeric(c)) { // todo: parse 0x, 0b, etc.
+            } else if (is_numeric(c)) {
                 token.type = Token_Number;
                 
                 float parsed_f = (float) (c - '0');
@@ -426,7 +293,6 @@ bool maybe_parse_number(Tokenizer *tokenizer, Token *token) {
 	if (negative_number) {
 		token->f = -token->f;
 		token->s = -token->s;
-		get_token(tokenizer);
 	}
 	get_token(tokenizer);
 
