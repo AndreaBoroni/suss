@@ -210,42 +210,54 @@ struct Node_Bucket_Array {
     }
 };
 
-#define Function_Bucket_Length 128
-struct Function_Bucket_Array {
-    Function functions[Function_Bucket_Length];
-    int length = 0;
+//
+// Functions
+//
+f64 sin_ (f64 a) { return sin(a); }
+f64 cos_ (f64 a) { return cos(a); }
+f64 tan_ (f64 a) { return tan(a); }
+f64 cot_ (f64 a) { return cos(a)/sin(a); }
+f64 asin_(f64 a) { return asin(a); }
+f64 acos_(f64 a) { return acos(a); }
+f64 atan_(f64 a) { return atan(a); }
 
-    Function *add(String name, void *fun_pointer, int number_of_arguments) {
-        Function *result = &functions[length];
-        length++;
-        assert(length <= Function_Bucket_Length);
+f64 pow_ (f64 b, f64 e) { return pow(b, e); }
+f64 sqrt_(f64 a)        { return pow(a, 0.5); }
+f64 ln_  (f64 a)        { return log(a); }
+f64 log_ (f64 a, f64 b) { return log(a)/log(b); }
 
-        result->name                = name;
-        result->pointer             = fun_pointer;
-        result->number_of_arguments = number_of_arguments;
+f64 max_(f64 a, f64 b) { return a > b ? a : b; }
+f64 min_(f64 a, f64 b) { return a > b ? b : a; }
 
-        return result;
+const int n_functions = 13;
+Function functions[n_functions];
+
+Function *initialize_functions() {
+    functions[0]  = {_s("sqrt"), (void *) &sqrt_, 1};
+    functions[1]  = {_s("sin"),  (void *) &sin_,  1};
+    functions[2]  = {_s("cos"),  (void *) &cos_,  1};
+    functions[3]  = {_s("tan"),  (void *) &tan_,  1};
+    functions[4]  = {_s("cot"),  (void *) &cot_,  1};
+    functions[5]  = {_s("asin"), (void *) &asin_, 1};
+    functions[6]  = {_s("acos"), (void *) &acos_, 1};
+    functions[7]  = {_s("atan"), (void *) &atan_, 1};
+    functions[8]  = {_s("ln"),   (void *) &ln_,   1};
+    functions[9]  = {_s("min"),  (void *) &min_,  2};
+    functions[10] = {_s("max"),  (void *) &max_,  2};
+    functions[11] = {_s("log"),  (void *) &log_,  2};
+    functions[12] = {_s("pow"),  (void *) &pow_,  2};
+}
+
+Function *find_function(String name) {
+    for (int i = 0; i < n_functions; i++) {
+        if (are_strings_equal(functions[i].name, name)) return &functions[i];
     }
+    return NULL;
+}
 
-    Function operator [] (int index) {
-        assert(index < Function_Bucket_Length);
-        return functions[index];
-    }
-
-    Function *find(String name) {
-        for (int i = 0; i < length; i++) {
-            if (are_strings_equal(functions[i].name, name)) return &functions[i];
-        }
-        return NULL;
-    }
-    Function *find(char *name) {
-		return find(_s(name));
-	}
-
-	void reset() {
-		length = 0;
-	}
-};
+Function *find_function(char *name) {
+    return find_function(_s(name));
+}
 
 #define Variable_Bucket_Length 128
 struct Variable_Bucket_Array {
@@ -297,42 +309,10 @@ struct Variable_Bucket_Array {
 	}
 };
 
-Function_Bucket_Array functions;
 Variable_Bucket_Array variables;
 Node_Bucket_Array     nodes;
 
-f64 sin_(f64 a)  { return sin(a); }
-f64 cos_(f64 a)  { return cos(a); }
-f64 tan_(f64 a)  { return tan(a); }
-f64 cot_(f64 a)  { return cos(a)/sin(a); }
-f64 asin_(f64 a) { return asin(a); }
-f64 acos_(f64 a) { return acos(a); }
-f64 atan_(f64 a) { return atan(a); }
-
-f64 pow_(f64 b, f64 e) { return pow(b, e); }
-f64 sqrt_(f64 a)       { return pow(a, 0.5); }
-f64 ln_(f64 a)         { return log(a); }
-f64 log_(f64 a, f64 b) { return log(a)/log(b); }
-
-f64 max_(f64 a, f64 b) { return a > b ? a : b; }
-f64 min_(f64 a, f64 b) { return a > b ? b : a; }
-
-void initialize_functions_and_constants() {
-    
-    functions.add(_s("sqrt"), (void *) &sqrt_, 1);
-    functions.add(_s("sin"),  (void *) &sin_,  1);
-    functions.add(_s("cos"),  (void *) &cos_,  1);
-    functions.add(_s("tan"),  (void *) &tan_,  1);
-    functions.add(_s("cot"),  (void *) &cot_,  1);
-    functions.add(_s("asin"), (void *) &asin_, 1);
-    functions.add(_s("acos"), (void *) &acos_, 1);
-    functions.add(_s("atan"), (void *) &atan_, 1);
-    functions.add(_s("ln"),   (void *) &ln_,   1);
-    functions.add(_s("min"),  (void *) &min_,  2);
-    functions.add(_s("max"),  (void *) &max_,  2);
-    functions.add(_s("log"),  (void *) &log_,  2);
-    functions.add(_s("pow"),  (void *) &pow_,  2);
-
+void initialize_constants() {
     variables.add(_s("pi"), 3.14159265359);
     variables.add(_s("e"),  2.71828182845);
 }
@@ -358,7 +338,7 @@ Node *parse_subexpression(Tokenizer *tokenizer) {
             node->parenthesized = true;
         } break;
         case Token_Identifier: {
-            Function *fun = functions.find(token.text);
+            Function *fun = find_function(token.text);
             if (fun) {
                 Token peek_paren = get_token(tokenizer);
 
@@ -541,12 +521,12 @@ void find_unknown(Node *tree, Unknown_Search_Result *result, Branch b1 = No_Bran
 }
 
 Function *maybe_inverse_function(Function *fun) {
-    if      (are_strings_equal(fun->name, "sin"))  return functions.find("asin");
-    else if (are_strings_equal(fun->name, "asin")) return functions.find("sin");
-    else if (are_strings_equal(fun->name, "cos"))  return functions.find("acos");
-    else if (are_strings_equal(fun->name, "acos")) return functions.find("cos");
-    else if (are_strings_equal(fun->name, "tan"))  return functions.find("atan");
-    else if (are_strings_equal(fun->name, "atan")) return functions.find("tan");
+    if      (are_strings_equal(fun->name, "sin"))  return find_function("asin");
+    else if (are_strings_equal(fun->name, "asin")) return find_function("sin");
+    else if (are_strings_equal(fun->name, "cos"))  return find_function("acos");
+    else if (are_strings_equal(fun->name, "acos")) return find_function("cos");
+    else if (are_strings_equal(fun->name, "tan"))  return find_function("atan");
+    else if (are_strings_equal(fun->name, "atan")) return find_function("tan");
 
     return NULL;
 }
@@ -606,17 +586,17 @@ int isolate_unknown(Node *tree) {
                 tree->right->fun_pointer = simple_inverse_fun;
                 tree->right->left        = right_side;
 
-            } else if (fun == functions.find("sqrt")) {
-                tree->right->fun_pointer = functions.find("pow");
+            } else if (fun == find_function("sqrt")) {
+                tree->right->fun_pointer = find_function("pow");
                 tree->right->left        = right_side;
                 tree->right->right       = nodes.make_number(2);
 
-            } else if (fun == functions.find("ln")) {
-                tree->right->fun_pointer = functions.find("pow");
+            } else if (fun == find_function("ln")) {
+                tree->right->fun_pointer = find_function("pow");
                 tree->right->left        = nodes.make_variable(variables.find("e"));
                 tree->right->right       = right_side;
 
-            } else if (fun == functions.find("cot")) {
+            } else if (fun == find_function("cot")) {
                 auto divide_node   = nodes.make(Node_Divide);
                 divide_node->left  = nodes.make_variable(variables.find("pi"));
                 divide_node->right = nodes.make_number(2);
@@ -625,29 +605,29 @@ int isolate_unknown(Node *tree) {
                 minus_node->left  = divide_node;
                 minus_node->right = tree->right;
 
-                tree->right->fun_pointer = functions.find("atan");
+                tree->right->fun_pointer = find_function("atan");
                 tree->right->left        = right_side;
 
                 tree->right = minus_node;
                 
-            } else if (fun == functions.find("pow")) {
+            } else if (fun == find_function("pow")) {
                 if (level_2 == Left_Branch) {
                     auto division_node   = nodes.make(Node_Divide);
                     division_node->left  = nodes.make_number(1);
                     division_node->right = argument;
 
-                    tree->right->fun_pointer = functions.find("pow");
+                    tree->right->fun_pointer = find_function("pow");
                     tree->right->left        = right_side;
                     tree->right->right       = division_node;
 
                 } else {
-                    tree->right->fun_pointer = functions.find("log");
+                    tree->right->fun_pointer = find_function("log");
                     tree->right->left        = right_side;
                     tree->right->right       = argument;
                 }
-            } else if (fun == functions.find("log")) {
+            } else if (fun == find_function("log")) {
                 if (level_2 == Left_Branch) {
-                    tree->right->fun_pointer = functions.find("pow");
+                    tree->right->fun_pointer = find_function("pow");
                     tree->right->left        = argument;
                     tree->right->right       = right_side;
 
@@ -656,7 +636,7 @@ int isolate_unknown(Node *tree) {
                     division_node->left  = nodes.make_number(1);
                     division_node->right = right_side;
 
-                    tree->right->fun_pointer = functions.find("pow");
+                    tree->right->fun_pointer = find_function("pow");
                     tree->right->left        = argument;
                     tree->right->right       = division_node;
 
@@ -736,7 +716,8 @@ int depth(Node *tree) {
     if (tree->left)  left_depth  = depth(tree->left);
     if (tree->right) right_depth = depth(tree->right);
 
-    return max(left_depth, right_depth) + 1;
+    if (left_depth > right_depth) return left_depth + 1;
+    return right_depth + 1;
 }
 
 Node *parse_line(Tokenizer *tokenizer, bool verbose = false) {
@@ -767,68 +748,293 @@ Node *parse_line(Tokenizer *tokenizer, bool verbose = false) {
     return tree;
 }
 
-struct bit_array {
-    u8 *mem = NULL;
+#define epsilon 0.00001
 
-    int length          = 0;
-    int bytes_allocated = 0;
-
-    bool operator [] (int index) {
-        if (index >= length) return false;
-        if (index < 0)       return false;
-
-        int byte_index = index / 8;
-        int bit_index  = index % 8;
-
-        return (mem[byte_index] >> bit_index) & 1;
-    }
-
-    void set_bit(int index) {
-        if (index >= length) return;
-        if (index < 0)       return;
-
-        int byte_index = index / 8;
-        int bit_index  = index % 8;
-
-        mem[byte_index] |= (1 << bit_index);
-    }
-    
-    void unset_bit(int index) {
-        if (index >= length) return;
-        if (index < 0)       return;
-
-        int byte_index = index / 8;
-        int bit_index  = index % 8;
-
-        mem[byte_index] &= ~(1 << bit_index);
-    }
+struct Result {
+	String name;
+	f64    value;
 };
 
-bit_array get_bit_array(int length) {
-    bit_array result;
-    result.bytes_allocated = length / 8 + 1;
+enum Fail_Code {
+	All_Good             = 0,
+	Nothing_To_Check     = 1,
+	Unsolvable_Equations = 2,
+	Unsolved_Variable    = 3,
+	Wrong_Result         = 4,
+	Unparsed_Results     = 5,
+	Less_Results_Defined = 6,
+	Could_Not_Load_File  = 7,
+};
 
-    result.mem = (u8 *) calloc(result.bytes_allocated, 1);
-    result.length = length;
+struct Result_Array {
+	Result *memory;
+	int length;
 
-    return result;
+	Result * operator [] (int index) {
+		return &memory[index];
+	}
+};
+
+struct Fail_Info {
+	String variable_name;
+	f64 variable_value;
+	f64 variable_actual_value;
+
+	Fail_Code code;
+};
+
+Result_Array get_result_array(int length) {
+	Result_Array results;
+	results.memory = (Result *) calloc(sizeof(Result), length);
+	results.length = length;
+
+	return results;
+}
+
+void reset_variables() {
+	variables.reset();
+}
+
+int count_pounds(Tokenizer *tokenizer) {
+	Tokenizer t = *tokenizer;
+
+	int result = 0;
+	while (true) {
+		Token token = get_token(&t);
+		if (token.type == Token_Pound) result++;
+		if (token.type == Token_End_Of_File) break;
+	}
+
+	return result;
+}
+
+Fail_Code parse_expected_results(Tokenizer *tokenizer, Result_Array *results) {
+
+	int number_of_unknowns = count_pounds(tokenizer);
+	if (number_of_unknowns == 0) return Nothing_To_Check;
+
+	*results = get_result_array(number_of_unknowns);
+
+	Token token;
+	int results_parsed = 0;
+
+	while (true) {
+		eat_spaces_new_lines_and_comments(tokenizer);
+		
+		if (!peek_token_type(tokenizer, &token, Token_Pound)) {
+			if (results_parsed < number_of_unknowns) return Less_Results_Defined;
+		}
+		if (results_parsed >= number_of_unknowns) return All_Good;
+
+		if (peek_token_type(tokenizer, &token, Token_Identifier)) {
+			results->memory[results_parsed].name = token.text;
+		} else {
+			return Unparsed_Results;
+		}
+
+		if (!peek_token_type(tokenizer, &token, Token_Equals)) {
+			return Unparsed_Results;
+		}
+		
+		if (maybe_parse_number(tokenizer, &token)) {
+			results->memory[results_parsed].value = token.f;
+		} else {
+			return Unparsed_Results;
+		}
+
+		results_parsed++;
+	}
+}
+
+Fail_Info test_program(char *file_name) {
+
+	Fail_Info info;
+	info.code = All_Good;
+	
+	reset_variables();
+	initialize_constants();
+
+	String file;
+	file.data = load_file_memory(file_name, &file.count);
+	if (file.data == NULL) {
+		info.code = Could_Not_Load_File;
+		return info;
+	}
+	Tokenizer tokenizer = get_tokenizer(file);
+
+	Result_Array results;
+	info.code = parse_expected_results(&tokenizer, &results);
+
+	if (info.code != All_Good) return info;
+
+	Node **lines = NULL;
+	int n_lines = 0;
+
+    while (true) {
+        Token token = peek_token(&tokenizer);
+        if (token.type == Token_End_Of_File) break;
+        
+        Node *parsed_line = parse_line(&tokenizer);
+        if (parsed_line) lines = add(lines, parsed_line, &n_lines);
+    }
+
+	int *line_computed = (int *) calloc(n_lines, sizeof(int));
+	int at = 0;
+	int last_line_computed = 0;
+	while (true) {
+		Node *line = lines[at];
+		int result = isolate_unknown(line);
+		
+		if (!line_computed[at]) {
+			if (result == Unknown_Not_Found) {
+				line_computed[at] = true;
+			} else if (result == Unknown_Found) {
+				f64 eval_result = eval_tree(line);
+				line_computed[at] = true;
+				last_line_computed = at;
+			}
+		}
+		
+		int total_lines_computed = 0;
+		for (int i = 0; i < n_lines; i++) total_lines_computed += line_computed[i];
+		if (total_lines_computed == n_lines) break;
+		
+		at = (at+1) % n_lines;
+		if (at == last_line_computed) {
+			info.code = Unsolvable_Equations;
+			return info;
+		}
+	}
+
+	for (int r = 0; r < results.length; r++) {
+		bool found = false;
+		for (int i = 0; i < variables.length; i++) {
+			if (!are_strings_equal(results[r]->name, variables[i].name)) continue;
+
+            info.variable_name  = results[r]->name;
+            info.variable_value = results[r]->value;
+
+			if (!variables[i].initialized) {
+				info.code = Unsolved_Variable;
+				return info;
+			}
+		
+			if (abs(results[r]->value - variables[i].value) > epsilon) {
+				info.code = Wrong_Result;
+				info.variable_actual_value = variables[i].value;
+				return info;
+			}
+
+			found = true;
+			break;
+		}
+		if (!found) {
+			info.code = Unsolved_Variable;
+			return info;
+		}
+	}
+
+	return info;
+}
+
+char *tests_folder_path = "tests/*";
+
+int longest_file_name(char *folder_name) {
+	
+	WIN32_FIND_DATA find_file_data;
+	HANDLE handle = FindFirstFile(tests_folder_path, &find_file_data);
+	
+	int result = 0;
+	do {
+		if ((find_file_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) continue;
+
+		int name_length = strlen(find_file_data.cFileName);
+		if (name_length > result) result = name_length;
+
+	} while (FindNextFile(handle, &find_file_data) != 0);
+
+	FindClose(handle);
+
+	return result;
+}
+
+void run_tests() {
+	int longest_name = longest_file_name(tests_folder_path);
+
+	WIN32_FIND_DATA find_file_data;
+	HANDLE handle = FindFirstFile(tests_folder_path, &find_file_data);
+
+    initialize_functions();
+
+	do {
+		if ((find_file_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) continue;
+
+		char *file_name = find_file_data.cFileName;
+		int name_length   = strlen(file_name);
+		int folder_length = strlen(tests_folder_path);
+
+		char *full_file_name = (char *) malloc(folder_length + name_length);
+		memcpy(full_file_name, tests_folder_path, folder_length);
+		memcpy(full_file_name + folder_length - 1, file_name, name_length);
+		full_file_name[folder_length + name_length - 1] = '\0';
+		printf("Testing: %s", full_file_name);
+		for (int i = 0; i < longest_name - name_length; i++) printf(" ");
+		printf(" ----> ");
+
+		Fail_Info info = test_program(full_file_name);
+
+		if (info.code == All_Good) {
+            printf("Success\n");
+		} else {
+			printf("Failed\n");
+			switch(info.code) {
+				case Nothing_To_Check:     printf("No results defined\n");                                     break;
+				case Could_Not_Load_File : printf("Could not load file\n");                                    break;
+				case Unparsed_Results:     printf("Unable to parse results\n");                                break;
+				case Unsolvable_Equations: printf("Possible circular dependencies in the equations\n");        break;
+				case Less_Results_Defined: printf("# is in the file and it is not used to define a result\n"); break;
+
+				case Unsolved_Variable: {
+					printf("Variable ");
+					for (int c = 0; c < info.variable_name.count; c++) printf("%c", info.variable_name.data[c]);
+					printf(" is not computed\n");
+				} break;
+				
+                case Wrong_Result: {
+					printf("Variable ");
+					for (int c = 0; c < info.variable_name.count; c++) printf("%c", info.variable_name.data[c]);
+					printf(" computed to a wrong result.\nComputed: %f\nStored:   %f\n", info.variable_actual_value, info.variable_value);
+				} break;
+			}
+		}
+
+		free(full_file_name);
+	} while (FindNextFile(handle, &find_file_data) != 0);
+	
+	FindClose(handle);
 }
 
 int main(int argc, char** argv) {
 
-    initialize_functions_and_constants();
+    initialize_constants();
+    initialize_functions();
 
     String file;
 
     if (argc > 1) {
-        file.data = load_file_memory(argv[1], &file.count);
+        if (are_strings_equal(_s("test"), argv[1])) {
+            run_tests();
+            return 0;
+        } else {
+            file.data = load_file_memory(argv[1], &file.count);
+        }
     } else {
         file.data = load_file_memory("calc.txt", &file.count);
     }
     assert(file.data);
 
     Node **lines = NULL;
-    int number_of_lines = 0;
+    int n_lines = 0;
 
     Tokenizer tokenizer = get_tokenizer(file);
     while (true) {
@@ -837,32 +1043,32 @@ int main(int argc, char** argv) {
         
         Node *parsed_line = parse_line(&tokenizer);
         
-        if (parsed_line) lines = add(lines, parsed_line, &number_of_lines);
+        if (parsed_line) lines = add(lines, parsed_line, &n_lines);
     }
 
-    bit_array line_computed = get_bit_array(number_of_lines);
+    int *line_computed = (int *) calloc(n_lines, sizeof(int));
     int at = 0;
     int last_line_computed = 0;
     while (true) {
-        if (!line_computed[at]) {
 
+        if (line_computed[at] == false) {
             Node *line = lines[at];
             int result = isolate_unknown(line);
             
             if (result == Unknown_Not_Found) {
-                line_computed.set_bit(at);
+                line_computed[at] = true;
             } else if (result == Unknown_Found) {
                 f64 eval_result = eval_tree(line);
-                line_computed.set_bit(at);
+                line_computed[at] = true;
                 last_line_computed = at;
             }
         }
 
         int total_lines_computed = 0;
-        for (int i = 0; i < number_of_lines; i++) total_lines_computed += line_computed[i];
-        if (total_lines_computed == number_of_lines) break;
+        for (int i = 0; i < n_lines; i++) total_lines_computed += line_computed[i];
+        if (total_lines_computed == n_lines) break;
 
-        at = (at+1) % number_of_lines;
+        at = (at+1) % n_lines;
         if (at == last_line_computed) report_error("Possible circular dependency, could not solve the equasions :(");
     }
 

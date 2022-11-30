@@ -8,7 +8,7 @@
             "name": "g++.exe - Debug game",
             "type": "cppdbg",
             "request": "launch",
-            "program": "C:/Users/andre/OneDrive/Desktop/Learnings/suss/main.exe",
+            "program": "C:/Users/andre/OneDrive/Desktop/Learnings/suss/test.exe",
             "args": [],
             "stopAtEntry": false,
             "cwd": "C:/Users/andre/OneDrive/Desktop/Learnings/suss/",

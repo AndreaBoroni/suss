@@ -278,23 +278,21 @@ bool peek_token_type(Tokenizer *tokenizer, Token *token, int token_type, bool ea
 }
 
 bool maybe_parse_number(Tokenizer *tokenizer, Token *token) {
-
 	Tokenizer t = *tokenizer;
 	*token = get_token(&t);
 
-	bool negative_number = false;
+	int sign = 1;
 	if (token->type == Token_Minus) {
-		negative_number = true;
+		sign = -1;
 		*token = get_token(&t);
 	}
 
 	if (token->type != Token_Number) return false;
 	
-	if (negative_number) {
-		token->f = -token->f;
-		token->s = -token->s;
-	}
-	get_token(tokenizer);
+    token->f = sign * token->f;
+    token->s = sign * token->s;
+
+    *tokenizer = t;
 
 	return true;
 }

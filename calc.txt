@@ -1,15 +1,2 @@
-(lr*m+(l+lc)*mc-ll*ml)*g = a*(h*m+hc*mc+hl*ml)
-lr = l*(1-0.63)
-max_gear_ratio = a*(m+mc+ml)*rr/150
-
-m = 2000
-ml = 1000
-mc = 100
-l = 1.995;
-ll = 1;;;
-lc = 0.5
-h = 0.8
-hl = 1.4
-hc = 0.5
-g = 9.81
-rr = 0.68
+-1 = -a
+1 = -b
